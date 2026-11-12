@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<!-- © 2026 math-terakoya ／ CC BY-NC-SA 4.0（表示・非営利・継承）https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:;">
+<title>チェバ・メネラウスクエスト</title>
+<style>
+  /* ===================== レトロRPG風CSS（三角比クエストと共通） ===================== */
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body {
+    height: 100%;
+    background: #000;
+    font-family: 'Courier New', 'ＭＳ ゴシック', 'Osaka-Mono', monospace;
+    color: #fff;
+    overflow: hidden;
+  }
+  body { display: flex; align-items: center; justify-content: center; font-feature-settings: "palt"; }
+  #game {
+    width: 100%;
+    max-width: 480px;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 900px;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    border: 2px solid #333;
+    overflow: hidden;
+  }
+
+.rpg-window {
+background: #000;
+border: 3px solid #fff;
+box-shadow: 0 0 0 3px #000, 0 0 0 5px #fff;
+padding: 8px;
+margin: 6px 8px;
+position: relative;
+}
+
+#status {
+display: grid;
+grid-template-columns: 1fr 1fr;
+column-gap: 14px;
+padding: 4px 10px;
+font-size: 12px;
+line-height: 1.7;
+flex-shrink: 0;
+}
+#status .row { display: flex; justify-content: space-between; }
+#status .label { color: #ffff00; letter-spacing: 1px; }
+#status .value { color: #fff; letter-spacing: 1px; }
+#status .wide { grid-column: 1 / -1; }
+
+.hearts { letter-spacing: 2px; color: #ff4444; }
+.hearts .empty { color: #444; }
+
+#battle {
+display: grid;
+grid-template-columns: 64px 1fr;
+align-items: center;
+gap: 6px;
+padding: 6px 8px;
+flex-shrink: 0;
+}
+#enemy { text-align: center; }
+#monster {
+font-size: 38px;
+line-height: 1.1;
+display: inline-block;
+transition: transform 0.15s, opacity 0.3s;
+text-shadow: 0 0 8px rgba(255,255,255,0.3);
+}
+#monster.boss { animation: bossFloat 2s ease-in-out infinite; text-shadow: 0 0 12px rgba(255,220,0,0.8); }
+@keyframes bossFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+#monster.hit { animation: hit 0.3s; }
+@keyframes hit {
+0%, 100% { transform: translateX(0); filter: brightness(1); }
+20% { transform: translateX(-8px); filter: brightness(3) hue-rotate(180deg); }
+40% { transform: translateX(8px); filter: brightness(3) hue-rotate(180deg); }
+60% { transform: translateX(-5px); filter: brightness(3); }
+80% { transform: translateX(5px); }
+}
+#monster.dying { animation: die 0.8s forwards; }
+@keyframes die {
+0% { opacity: 1; transform: scale(1); }
+50% { opacity: 0.7; transform: scale(1.1); filter: brightness(3); }
+100% { opacity: 0; transform: scale(0.3) rotate(180deg); }
+}
+#monster.miss-dmg { animation: miss 0.4s; }
+@keyframes miss { 0%, 100% { transform: translateX(0); } 50% { transform: scale(1.08); filter: brightness(1.3) sepia(0.3); } }
+#monsterName { font-size: 10px; color: #ffff00; letter-spacing: 1px; white-space: nowrap; }
+#monsterName.long { font-size: 9px; letter-spacing: 0; }
+#problem { text-align: center; min-width: 0; }
+#problem .label { color: #ffff00; font-size: 11px; letter-spacing: 1px; margin-bottom: 3px; }
+#problem .expr {
+color: #fff;
+font-size: 18px;
+font-family: 'Times New Roman', 'Hiragino Mincho ProN', serif;
+letter-spacing: 0.5px;
+line-height: 1.35;
+}
+#skipTut {
+position: absolute; top: 4px; right: 6px;
+background: #000; color: #aaa; border: 1px solid #666;
+font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer;
+}
+#skipTut.hidden { display: none; }
+#problemExpr .nw { display: inline-block; white-space: nowrap; }
+/* ゲーム中に 章えらびへ もどる ボタン（れんしゅう中と ダメージの あいだは かくす） */
+#mapBtn { position: absolute; top: 5px; right: 8px; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 3; }
+#mapBtn.hidden { display: none; }
+#livesDisplay { margin-right: 58px; }   /* 右上の「≡ しょう」と かさならないよう ハートを 左へ */
+@media (max-width: 360px) { #mapBtn .mbt { display: none; } #livesDisplay { margin-right: 26px; } }   /* せまい 画面は「≡」だけ */
+#problem .expr.long { font-size: 15px; }
+#problem .expr.exam { font-size: 14px; text-align: left; line-height: 1.6; word-break: keep-all; }   /* ことばの 途中で 改行しない（空白で 切る） */
+#ruleBtn { display: block; margin: 3px auto 0; white-space: nowrap; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 2; }
+
+#planeWrap { flex: 1 1 0; min-height: 0; position: relative; overflow: hidden; }
+#plane {
+position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+border: 2px solid #fff; touch-action: manipulation; cursor: pointer;
+}
+
+#message {
+min-height: 48px;
+max-height: 30vh;
+max-height: 30dvh;
+overflow-y: auto;
+font-size: 12px;
+line-height: 1.55;
+letter-spacing: 0;
+white-space: pre-wrap;
+flex-shrink: 0;
+padding: 6px 10px;
+}
+
+/* — ボタン（2列。出す・隠すは問題の種類で切りかえ） — */
+#controls { padding: 2px 8px 8px; flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.key {
+background: #000; border: 2px solid #fff; color: #fff;
+font-family: inherit; font-size: 15px; font-weight: bold;
+padding: 6px 4px; cursor: pointer; text-align: center; line-height: 1.25;
+min-height: 44px; touch-action: manipulation;
+}
+.key.hidden { display: none; }
+.key:active { transform: translateY(1px); }
+.key.on { background: #fff; color: #000; }
+.key.full { grid-column: 1 / -1; }
+.key.submit { background: #004488; color: #ffff00; }
+.key.submit:disabled { background: #222; color: #666; border-color: #666; cursor: default; }
+.key.opt { font-family: 'Times New Roman', 'Hiragino Mincho ProN', serif; font-weight: normal; font-size: 16px; }
+.key.right { background: #005522; color: #fff; border-color: #44ff88; }
+.key.wrong { background: #551111; color: #fff; border-color: #ff4444; }
+.key .eq { display: block; font-size: 10px; font-weight: normal; letter-spacing: 1px; opacity: 0.85; }
+#mineBtn, #ansBtn { font-size: 13px; min-height: 38px; word-break: keep-all; }
+.key.pulse { animation: pulse 0.9s ease-in-out infinite; }
+@keyframes pulse { 50% { background: #ffff00; color: #000; border-color: #ffff00; box-shadow: 0 0 0 3px #ffff00; } }
+
+/* — TeX 風の分数と根号（外から読み込まずに描く） — */
+.fr { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; font-size: 0.78em; line-height: 1.08; margin: 0 2px; }
+.fr > .nu { border-bottom: 1.5px solid currentColor; padding: 0 3px 1px; }
+.fr > .de { padding: 1px 3px 0; }
+.rt { white-space: nowrap; }
+.bar { display: inline-block; width: 1.9em; height: 6px; border-radius: 2px; vertical-align: middle; margin: 3px 1px; }
+.bar.o { background: #ff9f43; }
+.bar.b { background: #4f8dff; }
+#defPoints .defr { font-family: 'Times New Roman', 'Hiragino Mincho ProN', serif; font-size: 16px; margin-top: 4px; }
+#defPoints .fr { font-size: 0.82em; }
+.rad { border-top: 1.5px solid currentColor; padding: 0 1px; margin-left: -1px; }
+/* — チュートリアルの指 — */
+/* 輪の中心が left/top（点の位置）に来て、指と文字はその下 */
+#tapHint { position: absolute; z-index: 5; pointer-events: none; transform: translate(-50%, 0); padding-top: 20px; text-align: center; }
+#tapHint.hidden, #btnHint.hidden { display: none; }
+#tapHint .ring {
+position: absolute; left: 50%; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+border: 3px solid #ffff00; border-radius: 50%; animation: ring 1s ease-out infinite;
+}
+@keyframes ring { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+#tapHint .finger { display: block; font-size: 34px; animation: tap 0.8s ease-in-out infinite; }
+@keyframes tap { 50% { transform: translateY(6px); } }
+#tapHint .txt {
+display: inline-block; margin-top: 2px; padding: 1px 6px; background: #000; border: 2px solid #ffff00;
+color: #ffff00; font-size: 12px; font-weight: bold; white-space: nowrap;
+}
+#btnHint {
+position: absolute; z-index: 60; pointer-events: none; font-size: 30px;
+transform: translate(-50%, -100%); animation: tapDown 0.8s ease-in-out infinite;
+}
+@keyframes tapDown { 50% { margin-top: 6px; } }
+
+/* — オーバーレイ — */
+.overlay {
+position: absolute; inset: 0; background: #000;
+display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+padding: 24px; z-index: 100; text-align: center;
+overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+/* 入りきる ときは まんなか、入りきらない ときは 上から スクロール（章が ふえても 下の ボタンまで とどく）。上下の 見えない すきまで まんなかに よせる */
+.overlay::before, .overlay::after { content: ''; flex: 1 0 0; }
+.overlay.hidden { display: none; }
+.overlay h1 { font-size: 28px; color: #ffff00; letter-spacing: 3px; margin-bottom: 20px; text-shadow: 3px 3px 0 #884400; line-height: 1.4; }
+.overlay p { font-size: 14px; color: #fff; line-height: 2; margin-bottom: 16px; letter-spacing: 1px; }
+.overlay .sub { color: #aaa; font-size: 12px; }
+.overlay .start-btn {
+background: #000; border: 3px solid #fff; box-shadow: 0 0 0 3px #000, 0 0 0 5px #fff;
+color: #ffff00; padding: 14px 28px; font-size: 16px; letter-spacing: 3px; cursor: pointer; margin-top: 20px; font-family: inherit;
+}
+.overlay .start-btn:active { background: #fff; color: #000; }
+.overlay .how-btn {
+background: #000; border: 2px solid #888; color: #ccc;
+padding: 8px 18px; font-size: 13px; letter-spacing: 2px; cursor: pointer; margin-top: 18px; font-family: inherit;
+}
+.overlay .hero { font-size: 64px; margin-bottom: 12px; }
+#chapterList { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 360px; }
+.chap { background: #000; border: 2px solid #fff; color: #fff; font-family: inherit; font-size: 14px; padding: 8px 10px; text-align: left; cursor: pointer; }
+.chap .unit { display: block; font-size: 11px; color: #aaa; margin-top: 2px; }
+.chap.locked { color: #666; border-color: #444; cursor: default; }
+.chap.reset { border-color: #888; color: #ccc; margin-top: 8px; }
+.how-btn.hidden { display: none; }
+.overlay .points {
+text-align: left; border: 3px solid #fff; box-shadow: 0 0 0 3px #000, 0 0 0 5px #fff;
+padding: 12px 14px; margin: 4px 0 8px; font-size: 13px; line-height: 2; letter-spacing: 0.5px;
+}
+.overlay .points b { color: #ffff00; }
+
+.dmg-float { position: absolute; font-size: 24px; font-weight: bold; pointer-events: none; animation: dmgFloat 1s forwards; z-index: 10; }
+@keyframes dmgFloat {
+0% { opacity: 1; transform: translateY(0) scale(0.6); }
+30% { transform: translateY(-16px) scale(1.2); }
+100% { opacity: 0; transform: translateY(-44px) scale(1); }
+}
+#flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 50; }
+#flash.on { animation: flash 0.2s; }
+@keyframes flash { 0% { opacity: 0; } 50% { opacity: 0.6; } 100% { opacity: 0; } }
+.level-up {
+position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+font-size: 32px; color: #ffff00; text-shadow: 3px 3px 0 #884400, 0 0 16px #ffff00;
+letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events: none; white-space: nowrap;
+}
+@keyframes lvUp {
+0% { opacity: 0; transform: translate(-50%, -30%) scale(0.5); }
+20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+100% { opacity: 0; transform: translate(-50%, -80%) scale(1); }
+}
+@media (max-height: 640px) {
+#status { line-height: 1.5; }
+#monster { font-size: 32px; }
+.key { min-height: 40px; font-size: 14px; }
+}
+#controls .nw { display: inline-block; white-space: nowrap; }
+/* — ボス戦 — */
+#game.boss-mid .rpg-window { border-color: #ff5a5a; box-shadow: 0 0 0 3px #000, 0 0 0 5px #ff5a5a; }
+#game.boss-final .rpg-window { border-color: #ffcc33; box-shadow: 0 0 0 3px #000, 0 0 0 5px #ffcc33; }
+#game.boss-mid #plane { border-color: #ff5a5a; }
+#game.boss-final #plane { border-color: #ffcc33; }
+.boss-warn {
+position: absolute; left: 0; right: 0; top: 38%; z-index: 40; pointer-events: none; text-align: center;
+font-size: 34px; font-weight: bold; letter-spacing: 4px; color: #fff; background: rgba(180,0,0,0.85);
+padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
+}
+.boss-warn.final { background: rgba(170,120,0,0.9); text-shadow: 3px 3px 0 #430; }
+@keyframes warn { 0%, 20%, 40%, 60% { opacity: 1; } 10%, 30%, 50% { opacity: 0.35; } 85% { opacity: 1; } 100% { opacity: 0; } }
+.level-up.crit { color: #ff9900; font-size: 26px; text-shadow: 3px 3px 0 #662200, 0 0 18px #ff6600; }
+.chap .stars { float: right; color: #ffd84a; letter-spacing: 1px; }
+.chap .stars .dim { color: #444; }
+#progressDisplay { letter-spacing: 0; }
+#controls.three { grid-template-columns: 1fr 1fr 1fr; }
+#controls.three .key.opt { font-size: 20px; font-family: inherit; font-weight: bold; }
+.zukan-btn { background: #000; border: 2px solid #7fe8ff; color: #7fe8ff; font-family: inherit; font-size: 13px; padding: 6px 10px; margin-bottom: 10px; cursor: pointer; width: 100%; max-width: 360px; }
+.comp { color: #ffd84a; font-size: 15px; letter-spacing: 1px; margin-bottom: 8px; text-shadow: 0 0 10px rgba(255,216,74,0.6); }
+.comp.hidden { display: none; }
+#zukanList { width: 100%; max-width: 380px; text-align: left; font-size: 12px; line-height: 1.5; }
+#zukanList .zch { color: #ffff00; margin: 8px 0 2px; font-size: 12px; }
+#zukanList .zi { border: 1px solid #555; padding: 3px 6px; margin-bottom: 3px; display: grid; grid-template-columns: 18px 26px 1fr; align-items: center; }
+#zukanList .zi .mk { font-size: 14px; }
+#zukanList .zi .sp { font-size: 18px; text-align: center; }
+#zukanList .zi .tip { grid-column: 2 / -1; color: #aaa; font-size: 11px; }
+#zukanList .zi.lock { color: #555; }
+#zukanList .zi.got .mk { color: #ffd84a; }
+#zukanList .zi.master .mk { color: #44ff88; }
+#zukanList .zi.mabz { border: 2px solid #ffd84a; box-shadow: 0 0 6px rgba(255,216,74,0.7), inset 0 0 6px rgba(255,120,220,0.35); }
+#zukanList .zi.mabz.lock { color: #a08a3a; }
+#monster.mab { animation: bossFloat 1.6s ease-in-out infinite, mabHue 2.4s linear infinite; text-shadow: 0 0 12px #ff7ad9, 0 0 18px #7fe8ff; }
+@keyframes mabHue { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+.boss-warn.mab { background: linear-gradient(90deg, rgba(255,90,180,0.85), rgba(255,216,74,0.9), rgba(90,200,255,0.85)); text-shadow: 3px 3px 0 #403; }
+/* せまい 画面：問題集の ことばを 少し 小さく、メッセージ欄を 少し 低く（図を のこす） */
+@media (max-width: 360px) { #problem .expr.exam { font-size: 13px; line-height: 1.45; } }
+@media (max-height: 640px) { #message { max-height: 22vh; max-height: 22dvh; } #problem .expr.exam { line-height: 1.4; } }
+
+/* — 選択肢が 長い とき（実際の 幅を 測って 文字を 小さく → 1列）。列は 中身に 押し広げられない — */
+#controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#controls.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#controls.one { grid-template-columns: minmax(0, 1fr); }
+.key { min-width: 0; max-width: 100%; overflow: hidden; }
+#game, #status, #message, #battle, #problem, #controls { min-width: 0; max-width: 100%; }
+#game { max-width: 480px; }   /* パソコンでも スマホの 幅で まんなかに（すぐ 上の 行で 100% に 広がらない ように。2026-10-27）*/
+#problem .expr.exam { display: inline-block; max-width: 100%; }   /* 問題集の ことばは かたまりごと まんなかに（行の 頭は そろえる） */
+#status .row { min-width: 0; gap: 4px; }
+#status .row .value { min-width: 0; word-break: keep-all; overflow-wrap: break-word; text-align: right; }   /* ことばの 途中で 折らない（空白で 折る） */
+#message { overflow-wrap: anywhere; }
+#problemExpr { overflow-wrap: break-word; }
+#status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#status .label { white-space: nowrap; }
+#status .row:not(.wide) .value { white-space: nowrap; }
+@media (max-width: 300px) { #status { column-gap: 6px; padding: 4px 6px; } }
+/* 文字が 大きい 設定で 縦に 入りきらない ときは 画面を 縦に スクロール（図は 100px より 小さく しない） */
+#game { overflow-y: auto; overflow-x: hidden; }
+#planeWrap { min-height: 100px; }
+#message { flex-shrink: 1; min-height: 48px; }   /* 縦が 足りない ときは まず メッセージを 小さく（中で スクロール）して ボタンを 画面に のこす */
+/* ことばの 途中で 改行しない（空白の ところで 折る。長すぎる ときだけ どこでも）*/
+#message, .overlay .points, .overlay p, #zukanList .tip { word-break: keep-all; overflow-wrap: anywhere; }
+/* 正解の 大きい まる（ほめる ことばつき）：2026-10-30 「正解かどうかが わかりにくい」→ 正解は 大きく ほめる */
+.maru { position: absolute; left: 50%; top: 46%; width: min(64vw, 290px); aspect-ratio: 1; transform: translate(-50%, -50%); z-index: 45; pointer-events: none;
+  border: 16px solid #ff4646; border-radius: 50%; box-shadow: 0 0 26px rgba(255,70,70,0.75), inset 0 0 26px rgba(255,70,70,0.5);
+  display: flex; align-items: center; justify-content: center; animation: maru 1.15s ease-out forwards; background: radial-gradient(circle, rgba(0,0,0,0.72) 55%, rgba(0,0,0,0.35) 100%); }
+.maru span { color: #fff; font-size: 30px; font-weight: bold; white-space: nowrap; letter-spacing: 2px; text-shadow: 3px 3px 0 #a00000, 0 0 14px #ff5050; }
+.maru.gold { border-color: #ffd84a; box-shadow: 0 0 30px rgba(255,216,74,0.85), inset 0 0 26px rgba(255,216,74,0.55); }
+.maru.gold span { text-shadow: 3px 3px 0 #8a5a00, 0 0 14px #ffd84a; }
+@keyframes maru { 0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; } 22% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+  36% { transform: translate(-50%, -50%) scale(1); } 78% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.04); opacity: 0; } }
+/* — 約束の 画面の 小さい 図 — */
+#defFigs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; max-width: 380px; margin: 0 auto 6px; flex-shrink: 0; }
+#defFigs .df { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+#defFigs canvas { width: 100%; height: auto; border: 1px solid #555; background: #000a18; }
+#defFigs .dn { font-size: 13px; color: #ffff00; margin-top: 3px; }
+#defPoints { max-width: 380px; }
+#plane { cursor: default; }
+#controls.one .key { min-height: 38px; padding: 4px; }
+@media (max-height: 640px) { #controls.one .key { min-height: 32px; padding: 2px 4px; } #controls.one .key.opt { font-size: 15px; } }   /* 選択肢が 1列の ときは 低く（図を のこす） */
+/* ===== チェバ・メネラウスクエスト：ここから 足した もの ===== */
+.key.opt { font-size: 20px; }   /* 選択肢は 大きく（対数クエストと そろえる） */
+#controls.three .key.opt { font-size: 20px; font-family: 'Times New Roman', 'Hiragino Mincho ProN', serif; font-weight: normal; }
+#problem .expr { font-size: 18px; }
+#problem .expr.exam .mline { font-size: 1.3em; }
+/* タップで 組み立てる 式（頂点は オレンジ、辺の 休憩ポイントは 青：先生の ノートの 色） */
+#build { flex-shrink: 0; text-align: center; padding: 2px 8px 0; min-height: 0; font-family: 'Times New Roman', 'Hiragino Mincho ProN', serif; font-size: 22px; color: #fff; line-height: 1.2; }
+#build.hidden { display: none; }
+#build .fr { font-size: 0.86em; margin: 0 3px; }
+#build .bl { display: inline-block; min-width: 0.62em; color: #666; }
+#build .vx { color: #ff9f43; font-weight: bold; }
+#build .sd { color: #6f9dff; font-weight: bold; }
+#build .cap { font-family: inherit; font-size: 12px; color: #4dff88; vertical-align: middle; margin-right: 4px; letter-spacing: 1px; }
+#build.right .fr, #build.ans .fr { text-shadow: 0 0 6px rgba(77,255,136,0.6); }
+#build .nwb { display: inline-block; white-space: nowrap; }
+#controls.tapmode #decideBtn { grid-column: auto; }
+#undoBtn { font-size: 14px; }
+#hintBtn { display: block; margin: 4px auto 0; white-space: nowrap; background: #000; color: #ffd84a; border: 1px solid #ffd84a; font-family: inherit; font-size: 11px; padding: 2px 6px; cursor: pointer; }
+#hintBtn.hidden { display: none; }
+#hintBtn.used { color: #887a3a; border-color: #887a3a; }
+#plane.tapmode { cursor: pointer; }
+/* 約束の 画面の 小さい 図（チェバ・メネラウス） */
+#defFigs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#defPoints .fr, .overlay .points .fr { font-size: 0.85em; }
+.overlay .points .vx { color: #ff9f43; font-weight: bold; }
+.overlay .points .sd { color: #6f9dff; font-weight: bold; }
+.overlay .points .defr { font-family: 'Times New Roman', 'Hiragino Mincho ProN', serif; font-size: 17px; text-align: center; margin: 2px 0 4px; }
+@media (max-height: 640px) { #build { font-size: 19px; } }
+/* 図は 140px より 小さく しない（せまい 画面で 式の 選択肢が 3行 ある ときは 画面を スクロール）。式の 選択肢は 低く */
+#planeWrap { min-height: 140px; }
+#controls.one .key.opt { min-height: 0; padding: 3px 4px; }
+@media (max-height: 640px) { #controls.one .key.opt { font-size: 17px; padding: 1px 4px; } }
+</style>
+</head>
+<body>
+<div id="game">
+
+  <div class="overlay" id="titleScreen">
+    <div class="hero">🦊</div>
+    <h1>チェバ・<br>メネラウスクエスト</h1>
+    <p class="sub">～数学A 図形の性質～</p>
+    <p class="comp hidden" id="compTitle"></p>
+    <p style="margin-top:20px;">式の 文字では なく 動き方を 覚えろ！<br>頂点 → 休憩ポイント → 頂点 …<br>1周して スタートへ もどる</p>
+    <button class="start-btn" id="startBtn">▶ はじめる</button>
+    <button class="how-btn" id="howBtn">？ あそびかた</button>
+    <p class="sub" style="margin-top:20px;font-size:10px;">どの 章からでも、何回でも。<br>ぜんぶの 章を ★3 に すると さいごの 章</p>
+    <p class="sub" style="margin-top:14px;font-size:9px;opacity:0.7;">© 2026 math-terakoya　CC BY-NC-SA 4.0</p>
+  </div>
+
+  <div class="overlay hidden" id="tutDoneScreen">
+    <div class="hero">🎯</div>
+    <h1>れんしゅう<br>クリア！</h1>
+    <div class="points">
+      <div>・<b>チェバ</b> → B から スタート、となり となり … 1周して B へ</div>
+      <div>・<b>メネラウス</b> → 外の 点まで 行って 帰ろうと して、となり となり …</div>
+      <div>・<b>辺の 比</b> → チェバ、<b>内部の 比・キツネの 顔</b> → メネラウス</div>
+    </div>
+    <button class="start-btn" id="goBtn">▶ しょうえらびへ</button>
+  </div>
+
+  <div class="overlay hidden" id="defScreen">
+    <h1 style="font-size:20px;margin-bottom:8px;">チェバ・メネラウスの 約束</h1>
+    <div id="defFigs">
+      <div class="df"><canvas id="defCvFig" width="120" height="100"></canvas><span class="dn">チェバの 定理</span></div>
+      <div class="df"><canvas id="defMnFig" width="120" height="100"></canvas><span class="dn">メネラウスの 定理</span></div>
+    </div>
+    <p class="sub" style="margin-bottom:4px;">文字の 式より 動き方（順番）を 覚える</p>
+    <div class="points" id="defPoints">
+      <div>・<b>チェバ</b>：頂点から 線が 出て 1点 O で 交わる 図。B から スタートして 頂点 → 辺の 休憩ポイント → 頂点 … と 1周（となり となり、となり となり、となり となり）<div class="defr" id="defCv"></div></div>
+      <div>・<b>メネラウス</b>：三角形と 直線 ℓ（キツネの 顔）。B から 外の P まで 行って 帰ろうと して（P → C）、となり となり、となり となり<div class="defr" id="defMn"></div></div>
+      <div>・三角形の <b>辺の 比</b>が ほしい → チェバ ／ <b>内部の 比</b>が ほしい → メネラウス ／ <b>キツネの 顔</b>が ある → メネラウス</div>
+    </div>
+    <button class="start-btn" id="defClose">▶ たたかう</button>
+  </div>
+
+  <div class="overlay hidden" id="ruleScreen">
+    <div class="hero">📏</div>
+    <h1 style="font-size:20px;">この ゲームの 約束</h1>
+    <div class="points">
+      <div>・頂点の 名前は <b style="color:#ff9f43">オレンジ</b>、辺の 休憩ポイント（内分点・外分点）は <b style="color:#6f9dff">青</b></div>
+      <div>・<b>きいろの 太い 線</b>：ほしい 比の 線分。水色の 数：問題で 与えた 比</div>
+      <div>・点を 順に タップ → 下に 式が 組み上がる。「↩ 1つ もどす」で やりなおし</div>
+      <div>・キツネの 顔は 図の 線を 4本 タップ（もう一度 タップで 外す）</div>
+      <div>・はじめに かいて ある ものは 問題の 条件だけ。答えの あと <b style="color:#4dff88">みどり</b>で 順番・キツネの 顔を 見せる</div>
+      <div>・答えの 比は 小さい 整数で（問題で 与える 比は そのまま）</div>
+    </div>
+    <button class="how-btn" id="ruleDef">📐 チェバ・メネラウスの 約束</button>
+    <button class="start-btn" id="ruleClose">▶ もどる</button>
+  </div>
+
+  <div class="overlay hidden" id="mapScreen">
+    <h1 style="font-size:20px;margin-bottom:6px;">しょうを えらべ</h1>
+    <p class="sub" id="mapLV" style="margin-bottom:8px;">ゆうしゃ LV 1</p>
+    <p class="comp hidden" id="mapComp"></p>
+    <button class="zukan-btn" id="zukanBtn">📖 モンスターずかん</button>
+    <div id="chapterList"></div>
+  </div>
+
+  <div class="overlay hidden" id="zukanScreen">
+    <h1 style="font-size:20px;margin-bottom:4px;">📖 モンスターずかん</h1>
+    <p class="comp hidden" id="zukanComp"></p>
+    <p class="sub" id="zukanCount" style="margin-bottom:4px;"></p>
+    <p class="sub" style="margin-bottom:4px;font-size:11px;line-height:1.6;">○ たおした　◎ にがてを こくふく した<br>（ボスの ◎ は ノーミスで たおした）</p>
+    <div id="zukanList"></div>
+    <button class="start-btn" id="zukanClose">▶ もどる</button>
+  </div>
+
+  <div class="overlay hidden" id="clearScreen">
+    <div class="hero" id="clearHero">🏰</div>
+    <h1 id="clearTitle">たおした！</h1>
+    <p id="clearText" style="white-space:pre-line;"></p>
+    <button class="start-btn" id="clearBtn">▶ しょうえらびへ</button>
+    <button class="how-btn" id="againBtn">🔁 もう一回</button>
+    <button class="how-btn hidden" id="resetBtn1">🔄 さいしょから あそぶ</button>
+  </div>
+
+  <div class="overlay hidden" id="resetScreen">
+    <div class="hero">🔄</div>
+    <h1 style="font-size:20px;">さいしょから あそぶ？</h1>
+    <p>★・LV・モンスターずかんの きろくが きえて、LV 1 から に なります。</p>
+    <button class="start-btn" id="resetYes">さいしょから</button>
+    <button class="how-btn" id="resetNo">やめる</button>
+  </div>
+
+  <div class="overlay hidden" id="quitScreen">
+    <div class="hero">🗺️</div>
+    <h1 style="font-size:20px;">しょうえらびに もどる？</h1>
+    <p>この 章は さいしょから やりなおしに なります。</p>
+    <button class="start-btn" id="quitYes">もどる</button>
+    <button class="how-btn" id="quitNo">つづける</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverScreen">
+    <div class="hero">💀</div>
+    <h1 style="color:#ff4444;text-shadow:3px 3px 0 #440000;">ぜんめつ…</h1>
+    <p>ゆうしゃは たおれてしまった…</p>
+    <p class="sub">この 章の さいしょから</p>
+    <button class="start-btn" id="retryBtn">▶ やりなおす</button>
+    <button class="how-btn" id="toMapBtn">しょうえらびへ</button>
+  </div>
+
+  <div class="rpg-window" id="status">
+    <button id="mapBtn" class="hidden">≡<span class="mbt"> しょう</span></button>
+    <div class="row"><span class="label">ゆうしゃ</span><span class="value" id="levelDisplay">LV 1</span></div>
+    <div class="row"><span class="label">ライフ</span><span class="value hearts" id="livesDisplay">♥♥♥</span></div>
+    <div class="row"><span class="label">こうげき</span><span class="value" id="attackDisplay">2</span></div>
+    <div class="row"><span class="label">てき</span><span class="value" id="enemyHpDisplay">HP 1</span></div>
+    <div class="row wide"><span class="label">しょう</span><span class="value" id="progressDisplay">&nbsp;</span></div>
+  </div>
+
+  <div class="rpg-window" id="message"><span id="msgText">&nbsp;</span></div>
+
+  <div class="rpg-window" id="battle">
+    <button id="skipTut" class="hidden">とばす ▶▶</button>
+    <div id="enemy"><div id="monster">🤔</div><div id="monsterName">ドッチカナ</div><button id="ruleBtn">？ やくそく</button><button id="hintBtn" class="hidden">💡 ヒント</button></div>
+    <div id="problem">
+      <div class="label" id="problemLabel">&nbsp;</div>
+      <div class="expr" id="problemExpr">&nbsp;</div>
+    </div>
+  </div>
+
+  <div id="planeWrap"><canvas id="plane" width="300" height="190"></canvas><div id="tapHint" class="hidden"><div class="ring"></div><span class="finger">👆</span><span class="txt">ここを タップ</span></div></div>
+
+  <div id="build" class="hidden"></div>
+
+  <div id="controls">
+    <button class="key opt hidden" data-i="0"></button>
+    <button class="key opt hidden" data-i="1"></button>
+    <button class="key opt hidden" data-i="2"></button>
+    <button class="key hidden" id="undoBtn">↩ 1つ もどす</button>
+    <button class="key submit full" id="decideBtn">けってい</button>
+    <button class="key full hidden" id="nextBtn">▼ つぎへ</button>
+  </div>
+
+  <div id="btnHint" class="hidden">👇</div>
+  <div id="flash"></div>
+</div>
+
+<!-- ========== しくみ（問題づくり・正解の 判定・図の 中身・図鑑）。画面には 触らない ========== -->
+<script id="core">
+(function (G) {
+'use strict';
+// 図：高さ ＝ 幅 × ASPECT（画面と テストで おなじ 値を 使う）。たても 横も 同じ 縮尺で 描く
+const FIG = { ASPECT: 0.66 };
+
+function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a; }
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function () {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function pick(rng, a) { return a[Math.floor(rng() * a.length)]; }
+function shuffle(rng, arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const red = (a, b) => { const g = gcd(a, b) || 1; return [a / g, b / g]; };
+const DEG = Math.PI / 180;
+
+// ---------- 名前 ----------
+const V3 = ['A', 'B', 'C'];
+const NEXT = { A: 'B', B: 'C', C: 'A' };                  // チェバの 式の 向き（B → C → A）
+const SIDE = { P: ['B', 'C'], Q: ['C', 'A'], R: ['A', 'B'] };   // 辺の 点 → 辺の 両端（BP : PC、CQ : QA、AR : RB の 向き）
+const FOOT = { A: 'P', B: 'Q', C: 'R' };                   // 頂点 → 向かいの 辺の 点
+const sp = (u, w) => ({ BC: 'P', CB: 'P', CA: 'Q', AC: 'Q', AB: 'R', BA: 'R' })[u + w];
+const third = (x, y) => V3.find(n => n !== x && n !== y);
+const DEF = { P: 'D', Q: 'E', R: 'F' };
+
+// ---------- 三角形の 形（角は 5° きざみ。どの 角も 40°〜80°、どの 2つも 10° 以上 ちがう）----------
+const SHAPES = [];
+for (let b = 40; b <= 80; b += 5) for (let c = 40; c <= 80; c += 5) {
+  const a = 180 - b - c;
+  if (a < 40 || a > 80) continue;
+  if (Math.min(Math.abs(a - b), Math.abs(b - c), Math.abs(c - a)) < 10) continue;
+  if (1 / (1 / Math.tan(b * Math.PI / 180) + 1 / Math.tan(c * Math.PI / 180)) < 0.62) continue;   // 背の 高さ（BC ＝ 1 の とき 0.62 いじょう。つぶれた 形に しない）
+  SHAPES.push([a, b, c]);
+}
+// ---------- チェバの 図の 重み（α, β, γ）：BP : PC ＝ γ : β、CQ : QA ＝ α : γ、AR : RB ＝ β : α、AO : OP ＝ (β ＋ γ) : α ----------
+// ノートの 例題・練習の 比（2:1・2:3 → 3:4 など）は 使わない
+const NOTE_M = ['6,4,3', '6,3,4', '2,1,3', '3,1,1', '3,2,2'];
+const MASS = [];
+for (let a = 1; a <= 5; a++) for (let b = 1; b <= 5; b++) for (let c = 1; c <= 5; c++) {
+  if (a === b || b === c || c === a || NOTE_M.includes([a, b, c].join(','))) continue;
+  MASS.push([a, b, c]);
+}
+// ---------- メネラウスの 図：辺の 2つは 内分、1つ（ext）は 外分。g[x] ＝ [m, n]（BP : PC ＝ m : n の 向き）----------
+const MN_PAIRS = [[1, 2], [2, 1], [1, 3], [3, 1], [2, 3], [3, 2], [3, 4], [4, 3], [1, 4], [4, 1]];
+const MN = [];
+for (const ext of ['P', 'Q', 'R']) {
+  const [y, z] = ['P', 'Q', 'R'].filter(x => x !== ext);
+  for (const g1 of MN_PAIRS) for (const g2 of MN_PAIRS) {
+    const [a, b] = red(g1[1] * g2[1], g1[0] * g2[0]);   // メネラウス：(m/n) の 積 ＝ 1
+    if (a > 9 || b > 9 || (a / b < 2.5 && a / b > 0.4)) continue;   // 外の 点が 遠すぎない（図に 入る）
+    if (ext === 'P' && y === 'Q' && g1.join() === '1,2' && g2.join() === '2,3') continue;   // ノートの 練習（AR : RB ＝ 2 : 3、BC : CP ＝ 2 : 1）
+    MN.push({ ext, g: { [y]: g1, [z]: g2, [ext]: [a, b] } });
+  }
+}
+
+// ---------- 座標（B(0, 0)、C(1, 0)、A は 上。y は 上が ＋）----------
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]], sub = (a, b) => [a[0] - b[0], a[1] - b[1]], mul = (a, k) => [a[0] * k, a[1] * k];
+const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+const unit = v => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
+function triPts(an) {
+  const cB = 1 / Math.tan(an[1] * DEG), cC = 1 / Math.tan(an[2] * DEG), h = 1 / (cB + cC);
+  return { A: [cB * h, h], B: [0, 0], C: [1, 0] };
+}
+// 点の 座標と、同じ 直線の 上の 点の 整数の 位置（比を 作る もと）
+function model(q) {
+  const T = triPts(q.an), P = { A: T.A, B: T.B, C: T.C }, tab = [];
+  if (q.fig === 'cv') {
+    const [al, be, ga] = q.m, s = al + be + ga;
+    P.P = lerp(P.B, P.C, ga / (be + ga)); P.Q = lerp(P.C, P.A, al / (al + ga)); P.R = lerp(P.A, P.B, be / (al + be));
+    P.O = [(al * P.A[0] + be * P.B[0] + ga * P.C[0]) / s, (al * P.A[1] + be * P.B[1] + ga * P.C[1]) / s];
+    tab.push({ B: 0, P: ga, C: be + ga }, { C: 0, Q: al, A: al + ga }, { A: 0, R: be, B: al + be },
+      { A: 0, O: be + ga, P: s }, { B: 0, O: ga + al, Q: s }, { C: 0, O: al + be, R: s });
+  } else {
+    for (const x of ['P', 'Q', 'R']) {
+      const [s1, s2] = SIDE[x], [a, b] = q.g[x];
+      if (x === q.ext) { P[x] = sub(mul(P[s2], a / (a - b)), mul(P[s1], b / (a - b))); tab.push({ [s1]: 0, [x]: a, [s2]: a - b }); }
+      else { P[x] = lerp(P[s1], P[s2], a / (a + b)); tab.push({ [s1]: 0, [x]: a, [s2]: a + b }); }
+    }
+  }
+  return { P, tab };
+}
+const lineOf = (tab, xs) => tab.find(t => xs.every(x => x in t));
+function ratioOf(tab, X, Y, Z) { const t = lineOf(tab, [X, Y, Z]); return red(Math.abs(t[X] - t[Y]), Math.abs(t[Y] - t[Z])); }
+const between = (t, X, Y, Z) => (t[Y] - t[X]) * (t[Y] - t[Z]) < 0;
+// 問題文の 比（約分）から 生徒が 決める 位置（BP : PC ＝ 3 : 4 → B 0、P 3、C 7）
+function stmtPos(tab, s) { const [X, Y, Z] = s, t = lineOf(tab, s), [u, v] = ratioOf(tab, X, Y, Z); return { [X]: 0, [Y]: u, [Z]: between(t, X, Y, Z) ? u + v : u - v }; }
+
+// ---------- 1周の 順（頂点 → 休憩ポイント → 頂点 …）----------
+// cyc ＝ { tri: [スタート, 頂点, 頂点], sp: [その あいだの 点 3つ] }
+const fwd = c => [c.tri[0], c.sp[0], c.tri[1], c.sp[1], c.tri[2], c.sp[2], c.tri[0]];
+const bwd = c => [c.tri[0], c.sp[2], c.tri[2], c.sp[1], c.tri[1], c.sp[0], c.tri[0]];
+function cevaCyc(S) { const v1 = NEXT[S], v2 = NEXT[v1]; return { tri: [S, v1, v2], sp: [sp(S, v1), sp(v1, v2), sp(v2, S)] }; }
+// キツネの 顔（チェバの 図の 中の メネラウス）：頂点 V から の 線 VX で 2つに 分けた 三角形。h ＝ 1 は △VYX と 直線 Z…、h ＝ 2 は △VXZ と 直線 Y…
+// スタートは 外の 点（Z や Y）が ある 辺の 遠い ほうの 頂点（行って 帰ろうと して…に なる）
+function foxCyc(V, h) {
+  const Y = NEXT[V], Z = NEXT[Y], X = FOOT[V];
+  return h === 1 ? { tri: [Y, X, V], sp: [Z, 'O', FOOT[Z]] } : { tri: [Z, X, V], sp: [Y, 'O', FOOT[Y]] };
+}
+const foxTri = (V, h) => { const Y = NEXT[V], Z = NEXT[Y], X = FOOT[V]; return h === 1 ? V + Y + X : V + X + Z; };
+const foxLine = (V, h) => { const Y = NEXT[V], Z = NEXT[Y]; return h === 1 ? Z + FOOT[Z] : Y + FOOT[Y]; };
+const CEV = ['AP', 'BQ', 'CR'];
+const foxOf = cyc => { const V = cyc.tri[2], h = cyc.tri[0] === NEXT[V] ? 1 : 2; return [V, h]; };   // キツネの 1周 → [V, h]
+function mnCyc(q) {
+  const e = q.ext, [s1, s2] = SIDE[e], [a, b] = q.g[e], T = third(s1, s2);
+  return a > b ? { tri: [s1, s2, T], sp: [e, sp(s2, T), sp(T, s1)] } : { tri: [s2, s1, T], sp: [e, sp(s1, T), sp(T, s2)] };
+}
+const fracsOf = f => [[f[0], f[1], f[2]], [f[2], f[3], f[4]], [f[4], f[5], f[6]]];
+
+// ---------- 文字 ----------
+const dnOf = q => (x => (q.nm === 'DEF' && DEF[x] ? DEF[x] : x));
+const segT = (q, a, b) => dnOf(q)(a) + dnOf(q)(b);
+const wantT = (q, w) => segT(q, w[0], w[1]) + ' : ' + segT(q, w[1], w[2]);
+const pathT = (q, f) => f.map(dnOf(q)).join(' → ');
+function stmtT(q, tab, s) { const [u, v] = ratioOf(tab, ...s); return wantT(q, s) + ' ＝ ' + u + ' : ' + v; }
+const sideW = x => SIDE[x] ? [SIDE[x][0], x, SIDE[x][1]] : [x, 'O', FOOT[x]];   // ほしい 比：P/Q/R は 辺の 比、A/B/C は 内部の 比（AO : OP）
+const isSideW = w => !!SIDE[w];
+const TH = ['チェバの 定理', 'メネラウスの 定理'];
+
+// 数を 入れた 式：既知の 分数は 問題文の 比から（{7|4} など）、ほしい 分数は 文字
+function eqParts(q, tab, cyc, givens) {
+  return fracsOf(fwd(cyc)).map(fr => {
+    const g = givens.find(s => fr.every(x => s.includes(x)));
+    if (!g) return { fr, unk: true };
+    const pos = stmtPos(tab, g);
+    return { fr, unk: false, n: [Math.abs(pos[fr[0]] - pos[fr[1]]), Math.abs(pos[fr[1]] - pos[fr[2]])] };
+  });
+}
+const eqText = (q, parts) => parts.map(p => (p.unk ? '{' + segT(q, p.fr[0], p.fr[1]) + '|' + segT(q, p.fr[1], p.fr[2]) + '}' : '{' + p.n[0] + '|' + p.n[1] + '}')).join(' × ') + ' ＝ 1';
+// 式から 出る ほしい 比（W の 向き）
+function solveEq(parts, W) {
+  let num = 1, den = 1;
+  parts.forEach(p => { if (!p.unk) { num *= p.n[0]; den *= p.n[1]; } });
+  const u = parts.find(p => p.unk).fr;   // ほしい 分数 ＝ den / num
+  const same = u[0] === W[0] && u[2] === W[2];
+  return same ? red(den, num) : red(num, den);
+}
+
+// ---------- 図の 中身（画面は これを そのまま 描く。ask ＝ 答える 前、ans ＝ 答えの あとに 足す もの）----------
+// 色：w 白・cy 水色（線）・sub 点線・pt きいろ（ほしい 比）・ok みどり（答え）・vx オレンジ（頂点の 名前）・sd 青（辺の 点の 名前）・oo 赤（O）・sh1／shg ぬり
+function figure(q, opt = {}) {
+  const { P, tab } = model(q), dn = dnOf(q), ask = [], ans = [];
+  const mk = L => ({
+    seg: (a, b, c = 'w', w = 2.2, d = false) => L.push({ k: 'seg', a, b, c, w, d }),
+    dot: (p, c = 'w', r = 4) => L.push({ k: 'dot', p, c, r }),
+    lab: (p, s, c = 'w') => L.push({ k: 'lab', p, s, c }),
+    poly: (ps, c) => L.push({ k: 'poly', ps, c }),
+    num: (a, b, s, c = 'cy', away = null) => L.push({ k: 'num', a, b, s, c, away }),
+    tag: (p, s, c = 'pt') => L.push({ k: 'tag', p, s, c }),
+  });
+  const a_ = mk(ask), z = mk(ans);
+  a_.seg(P.A, P.B); a_.seg(P.B, P.C); a_.seg(P.C, P.A);
+  const pts = ['A', 'B', 'C', 'P', 'Q', 'R'].concat(q.fig === 'cv' ? ['O'] : []);
+  if (q.fig === 'cv') ['A', 'B', 'C'].forEach(v => a_.seg(P[v], P[FOOT[v]], 'cy', 1.6));
+  else {
+    const e = q.ext, [s1, s2] = SIDE[e], [a, b] = q.g[e], near = a > b ? s2 : s1;
+    a_.seg(P[near], add(P[e], mul(unit(sub(P[e], P[near])), 0.06)), 'w', 1.4);   // 辺の 延長
+    const ps = ['P', 'Q', 'R'].map(x => P[x]), u = unit(sub(ps[1], ps[0]));
+    const ts = ps.map(p => (p[0] - ps[0][0]) * u[0] + (p[1] - ps[0][1]) * u[1]), t0 = Math.min(...ts) - 0.16, t1 = Math.max(...ts) + 0.12;
+    const L0 = add(ps[0], mul(u, t0)), L1 = add(ps[0], mul(u, t1));
+    a_.seg(L0, L1, 'cy', 1.8);
+    const top = L0[1] > L1[1] ? L0 : L1;
+    ask.push({ k: 'lab', p: top, s: 'ℓ', c: 'cy' });
+  }
+  const W = opt.want;
+  if (W) { a_.seg(P[W[0]], P[W[1]], 'pt', 5); a_.seg(P[W[1]], P[W[2]], 'pt', 5); }
+  (opt.givens || []).forEach(s => {   // 問題で 与えた 比の 数（三角形の 外がわに）
+    const pos = stmtPos(tab, s), far = V3.find(v => !s.includes(v)), aw = far ? P[far] : null;
+    a_.num(P[s[0]], P[s[1]], String(Math.abs(pos[s[0]] - pos[s[1]])), 'cy', aw); a_.num(P[s[1]], P[s[2]], String(Math.abs(pos[s[1]] - pos[s[2]])), 'cy', aw);
+  });
+  if (opt.fox) {   // キツネの 顔（ぬった 三角形）
+    const [V, h] = opt.fox, t = foxTri(V, h).split('').map(x => P[x]);
+    (opt.foxAsk ? a_ : z).poly(t, opt.foxAsk ? (opt.foxShade || 'sh1') : 'shg');
+    if (opt.foxLineAsk) { const l = foxLine(V, h); a_.seg(P[l[0]], P[l[1]], 'cy', 3.6); }
+  }
+  if (opt.foxAns) { const [V, h] = opt.foxAns, l = foxLine(V, h); if (!opt.fox || opt.foxAsk) z.poly(foxTri(V, h).split('').map(x => P[x]), 'shg'); z.seg(P[l[0]], P[l[1]], 'ok', 3.4); }
+  if (opt.cevAns) ['A', 'B', 'C'].forEach(v => z.seg(P[v], P[FOOT[v]], 'ok', 2.6));
+  if (opt.linesAns) opt.linesAns.forEach(id => z.seg(P[LINES[id][0]], P[LINES[id][1]], 'ok', 4.2));
+  if (opt.mnAns) { z.seg(P.A, P.B, 'ok', 3); z.seg(P.B, P.C, 'ok', 3); z.seg(P.C, P.A, 'ok', 3); }
+  if (opt.area) {   // △OYZ と △ABC（底辺が 同じ）
+    const V = opt.area, Y = NEXT[V], Z = NEXT[Y];
+    ask.unshift({ k: 'poly', ps: [P.O, P[Y], P[Z]], c: 'sh2' });
+    const hf = (X) => { const d = sub(P[Z], P[Y]), t = ((X[0] - P[Y][0]) * d[0] + (X[1] - P[Y][1]) * d[1]) / (d[0] * d[0] + d[1] * d[1]); return lerp(P[Y], P[Z], t); };
+    if (opt.areaAns) { z.seg(P[V], hf(P[V]), 'ok', 1.8, true); z.seg(P.O, hf(P.O), 'ok', 1.8, true); }
+    if (opt.areaRatio) { z.seg(P.O, P[FOOT[V]], 'ok', 4.5); }
+  }
+  if (opt.wantAns) { const [x, y] = ratioOf(tab, ...W); z.num(P[W[0]], P[W[1]], String(x), 'ok', opt.awayAns ? P[opt.awayAns] : null); z.num(P[W[1]], P[W[2]], String(y), 'ok', opt.awayAns ? P[opt.awayAns] : null); }
+  if (opt.wantLine) { z.seg(P[W[0]], P[W[2]], 'ok', 2.6); if (!SIDE[W[1]]) z.dot(P.O, 'ok', 4.5); }   // 辺の 上か、頂点から の 線の 上か
+  if (opt.start) a_.tag(P[opt.start], 'スタート');
+  pts.forEach(n => { const isV = V3.includes(n); a_.dot(P[n], n === 'O' ? 'oo' : 'w', isV ? 4.2 : 3.6); });
+  pts.forEach(n => { const isV = V3.includes(n); a_.lab(P[n], dn(n), n === 'O' ? 'oo' : isV ? 'vx' : 'sd'); });   // 名前は 頂点 → 辺の 点 → O の じゅんに 置く（O は あいた ところへ）
+  const named = {}; pts.forEach(n => { named[dn(n)] = P[n]; });
+  return { pts: named, taps: pts.map(dn), ask, ans, tri: [P.A, P.B, P.C], tapFig: !!opt.start, lines: q.fig === 'cv' ? LINES : null };
+}
+
+// ---------- 問題の 中身（1つの 問題 ＝ 1段 または 連れ問の 段）----------
+// 段：{ short: [ラベル, 短い 文], exam, options | tap, reason, hint, fig }
+const o = (text, types) => ({ text, types });
+// 判断は ノートの きまり：わかっている 比も 求めたい 比も 全部 三角形の 辺の 上 → チェバ ／ 内部の 比が 入る → メネラウス ／ キツネの 顔 → メネラウス
+const inStmt = s => s[1] === 'O';   // AO : OP など（頂点から 出た 線の 上）
+function foxFor(q, W, givens) {   // 内部の 比が 入る ときの キツネの 顔 [V, h]
+  const all = [W].concat(givens), s = all.find(inStmt), V = s[0] === 'O' ? s[2] : s[0], Y = NEXT[V], Z = NEXT[Y];
+  return [V, all.some(g => g[1] === FOOT[Y]) ? 2 : 1];
+}
+function thStep(q, tab, W, givens, num) {   // どっちの 定理？
+  const mn = q.fig === 'mn', inner = [W].concat(givens).filter(inStmt), side = !mn && !inner.length, right = side ? 0 : 1, w = wantT(q, W);
+  const gv = givens.map(s => stmtT(q, tab, s)).join('、');
+  const fx = !side && !mn ? foxFor(q, W, givens) : null;
+  const L = (num ? '▼ ' + num + ' ' : '▼ ') + 'どっちの 定理？';
+  const reason = mn ? ['三角形と 直線 ℓ → キツネの 顔が ある → メネラウスの 定理', '辺の 比でも キツネの 顔なら メネラウス']
+    : side ? ['わかっている 比も 求めたい 比も 全部 三角形の 辺の 上 → チェバの 定理', '頂点から 出た 3本の 線が 1点 O で 交わる 図']
+      : [(inStmt(W) ? '求めたい 比 ' : 'わかっている 比 ') + wantT(q, inner[0]) + ' は 三角形の 内部 → メネラウスの 定理', 'チェバの 図の 中に キツネの 顔（△' + foxTri(...fx) + ' と 直線 ' + foxLine(...fx) + '）'];
+  return {
+    short: [L, gv + '。' + w + ' を 求めたい。使う 定理は？'],
+    exam: (mn ? '図の △ABC と 直線 ℓ に おいて、' : '図の △ABC に おいて、') + gv + ' で ある。' + w + ' を 求める ときに 使う 定理を 答えよ。',
+    options: TH.map((t, i) => o(t, i === right ? [] : [mn ? 'thFox' : side ? 'thSide' : 'thIn'])), fixed: true,
+    reason, hint: mn ? 'まず 図を 見て、三角形を 横切る 直線（キツネの 顔）が あるか たしかめる' : 'まず わかっている 比と 求めたい 比の 線分を 図で なぞって、全部 三角形の 辺の 上か 見る',
+    fig: figure(q, { want: W, givens, cevAns: side, mnAns: mn, foxAns: fx }),
+  };
+}
+function kindStep(q, tab, W, givens) {   // ① 内部の 比は ある？（わかっている 比と 求めたい 比）
+  const inner = [W].concat(givens).filter(inStmt), side = !inner.length, w = wantT(q, W), gv = givens.map(s => stmtT(q, tab, s)).join('、');
+  return {
+    short: ['▼ ① どこの 比？', gv + '。' + w + ' を 求めたい。比は どこに ある？'],
+    exam: '図の △ABC に おいて、' + gv + ' で ある。' + w + ' を 求める とき、わかっている 比と 求めたい 比は 三角形の どこに あるか。',
+    options: [o('全部 三角形の 辺の 上', side ? [] : ['kIn']), o('三角形の 内部の 比が ある', side ? ['kSide'] : [])], fixed: true,
+    reason: [side ? 'わかっている 比も 求めたい 比も 全部 辺の 上' : wantT(q, inner[0]) + ' は 頂点 から 出た 線 ' + (inner[0][0] === 'O' ? inner[0][2] + inner[0][0] : inner[0][0] + inner[0][2]) + ' の 上 → 内部の 比'],
+    hint: 'まず わかっている 比と 求めたい 比の 線分を 図で なぞって、全部 三角形の 辺の 上か 見る',
+    fig: figure(q, { want: W, givens, wantLine: true }),
+  };
+}
+// ---------- キツネの 顔の 4本（図の 線を タップ）：三角形の 3辺 ＋ 横切る 直線 ----------
+const LINES = { AB: ['A', 'B'], BC: ['B', 'C'], CA: ['C', 'A'], AP: ['A', 'P'], BQ: ['B', 'Q'], CR: ['C', 'R'] };
+function lineOfStmt(s) {   // 3点が のる 線（辺 AB・BC・CA か 頂点から の 線 AP・BQ・CR）
+  if (s[1] === 'O' || s[0] === 'O') { const V = V3.includes(s[0]) ? s[0] : s[2]; return V + FOOT[V]; }
+  const vs = s.filter(x => V3.includes(x)); return ['AB', 'BC', 'CA'].find(id => id.includes(vs[0]) && id.includes(vs[1]));
+}
+const sideId = (u, w) => ['AB', 'BC', 'CA'].find(id => id.includes(u) && id.includes(w));
+function foxLines(V, h) {   // キツネの 顔の 4本
+  const Y = NEXT[V], Z = NEXT[Y], X = FOOT[V];
+  return (h === 1 ? [sideId(V, Y), sideId(Y, Z), V + X, Z + FOOT[Z]] : [sideId(V, Z), sideId(Y, Z), V + X, Y + FOOT[Y]]).sort();
+}
+function pickStep(q, tab, W, givens, num) {
+  const fx = [q.V, q.h], ans = foxLines(...fx), gv = givens.map(s => stmtT(q, tab, s)).join('、'), w = wantT(q, W);
+  const wl = lineOfStmt(W), gl = givens.map(lineOfStmt);
+  const T = '△' + foxTri(...fx), ln = foxLine(...fx);
+  return {
+    short: ['▼ ' + (num ? num + ' ' : '') + 'キツネの 顔の 4本は？', gv + '。' + w + ' を 求めたい。キツネの 顔の 線を 4本 タップ'],
+    exam: '図の △ABC に おいて、' + gv + ' で ある。' + w + ' を メネラウスの 定理で 求める。キツネの 顔に なる 4本の 線を 選べ。',
+    pick: { lines: Object.keys(LINES), ans, want: wl, given: gl },
+    reason: ['わかっている 比の 線 ' + gl.join('・') + ' と 求めたい 比の 線 ' + wl + ' ＋ 直線 ' + ln, T + ' と 直線 ' + ln + ' で キツネの 顔'],
+    hint: 'まず わかっている 比の 数が のっている 線と、求めたい 比の 線を 指で なぞる',
+    fig: figure(q, { want: W, givens, foxAns: fx, linesAns: ans }),
+  };
+}
+function tapStep(q, cyc, kind, opt = {}) {   // 図の 点を 順に タップ
+  const f = fwd(cyc), st = cyc.tri[0], dn = dnOf(q), d = x => dn(x);
+  const tap = { start: d(st), fwd: f.map(d), bwd: bwd(cyc).map(d), verts: cyc.tri.map(d), sides: cyc.sp.map(d) };
+  let short, exam, reason, hint;
+  if (kind === 'cv') {
+    const c3 = ['A', 'B', 'C'].map(v => d(v) + d(FOOT[v])).join('、');
+    short = ['▼ チェバの 順番', d(st) + ' から スタート。チェバの 式に なる 順に 点を タップ'];
+    exam = '図の △ABC で、点 O は 3直線 ' + c3 + ' の 交点で ある。チェバの 定理の 式を、' + d(st) + ' から 始めて 図の 点を 順に タップして 作れ。';
+    reason = [pathT(q, f) + '（となり となり…）', '頂点と 辺の 休憩ポイントを 交互に、1周して ' + d(st) + ' に もどる'];
+    hint = d(st) + ' から スタートして、頂点 → 辺の 点 → 頂点 … と となりへ 1周する';
+  } else {
+    const e = cyc.sp[0], near = cyc.tri[1];
+    if (kind === 'mn') {
+      short = ['▼ メネラウスの 順番', d(st) + ' から スタート。メネラウスの 式に なる 順に 点を タップ'];
+      exam = '図の △ABC と 直線 ℓ で、メネラウスの 定理の 式を、' + d(st) + ' から 始めて 図の 点を 順に タップして 作れ。';
+    } else {   // キツネの 顔（① で 見つけた もの）。三角形と 直線は 文で 指定しない
+      const gv = opt.givens.map(s => stmtT(q, opt.tab, s)).join('、'), w = wantT(q, opt.want);
+      short = ['▼ ' + (opt.num ? opt.num + ' ' : '') + 'メネラウスの 順番', gv + '。' + w + ' を 求めたい。キツネの 顔で ' + d(st) + ' から スタートして 順に タップ'];
+      exam = '図の △ABC に おいて、' + gv + ' で ある。' + w + ' を 求める。キツネの 顔で、メネラウスの 定理の 式を ' + d(st) + ' から 始めて 点を 順に タップして 作れ。';
+    }
+    reason = [pathT(q, f) + '（行って 帰ろうと して…）', d(st) + ' から 外の ' + d(e) + ' まで 行って、' + d(near) + ' に 帰ろうと する'];
+    hint = d(st) + ' から スタートして、まず 外の ' + d(e) + ' まで 行って（' + d(near) + ' を こえて）、' + d(near) + ' に 帰ろうと する';
+  }
+  return { short, exam, tap, reason, hint, fig: figure(q, Object.assign({ start: st }, opt.figOpt || {})) };
+}
+// 数を 入れた 式（3つ）。まちがいは 向きを 逆（flip）・外の 点まで 行かない（whole）
+function eqStep(q, tab, cyc, givens, W, num) {
+  const parts = eqParts(q, tab, cyc, givens), right = eqText(q, parts), w = wantT(q, W), st = cyc.tri[0];
+  const c = [o(right, [])], seen = new Set([right]), vals = [solveEq(parts, W).join(':')];
+  const tryAdd = (ps, ty) => { const t = eqText(q, ps), v = solveEq(ps, W).join(':'); if (seen.has(t) || vals.includes(v)) return; seen.add(t); vals.push(v); c.push(Object.assign(o(t, [ty]), { sol: solveEq(ps, W) })); };
+  const ext = q.fig === 'mn' || cyc.sp[1] === 'O' ? 0 : -1;   // 外の 点が ある 分数（行って 帰ろうと して）
+  if (ext === 0 && !parts[0].unk) {
+    const p = parts[0], g = givens.find(s => p.fr.every(x => s.includes(x))), pos = stmtPos(tab, g);
+    tryAdd(parts.map((x, i) => (i === 0 ? Object.assign({}, x, { n: [Math.abs(pos[x.fr[0]] - pos[x.fr[2]]), x.n[1]] }) : x)), 'eqWhole');
+  }
+  parts.forEach((p, i) => { if (!p.unk) tryAdd(parts.map((x, j) => (j === i ? Object.assign({}, x, { n: [x.n[1], x.n[0]] }) : x)), 'eqFlip'); });
+  const gv = givens.map(s => stmtT(q, tab, s)).join('、');
+  return {
+    short: ['▼ ' + num + ' 数を 入れた 式は？', gv + '。' + w + ' を 求める 式は？'],
+    exam: '図の △ABC' + (q.fig === 'mn' ? ' と 直線 ℓ' : '') + ' に おいて、' + gv + ' で ある。' + w + ' を 求める 式に 数を 入れた ものを 答えよ。',
+    options: c.slice(0, 3), eq: true, parts, sols: c.slice(1, 3).map(x => x.sol),
+    reason: ['スタート ' + dnOf(q)(st) + '：' + pathT(q, fwd(cyc)), givens.some(s => !parts.some(p => !p.unk && p.fr.join('') === s.join(''))) ? '問題の 比を 式の 向きに なおして 入れる' : '問題の 比を そのまま 分子・分母に 入れる'],
+    hint: dnOf(q)(st) + ' から スタートして 図の 点を 順に なぞり、分子・分母に 数を 入れる',
+    fig: figure(q, { want: W, givens, cevAns: cyc.sp[1] !== 'O' && q.fig === 'cv', mnAns: q.fig === 'mn', foxAns: cyc.sp[1] === 'O' ? foxOf(cyc) : null }), ok: c.length >= 3,
+  };
+}
+function ratioStep(q, tab, W, givens, parts, sols, num, figOpt) {   // 比を 求める
+  const [x, y] = ratioOf(tab, ...W), w = wantT(q, W), c = [o(x + ' : ' + y, [])], seen = new Set([x + ':' + y]);
+  const tryAdd = (r, ty) => { const k = r.join(':'); if (seen.has(k) || r[0] > 15 || r[1] > 15 || r[0] < 1 || r[1] < 1) return; seen.add(k); c.push(o(r[0] + ' : ' + r[1], [ty])); };
+  tryAdd([y, x], 'rSwap');
+  sols.forEach(s => tryAdd(s, 'rFromEq'));
+  tryAdd(red(x, x + y), 'rWhole'); tryAdd(red(x + y, y), 'rWhole');
+  const u = parts.find(p => p.unk).fr, uv = ratioOf(tab, ...u), gv = givens.map(s => stmtT(q, tab, s)).join('、');
+  return {
+    short: ['▼ ' + num + ' ' + w + ' は？', gv + '。' + w + ' ＝ ？'],
+    exam: '図の △ABC' + (q.fig === 'mn' ? ' と 直線 ℓ' : '') + ' に おいて、' + gv + ' で ある。' + w + ' を 求めよ。',
+    options: c.slice(0, 3),
+    reason: ['式から {' + segT(q, u[0], u[1]) + '|' + segT(q, u[1], u[2]) + '} ＝ {' + uv[0] + '|' + uv[1] + '}', w + ' ＝ ' + x + ' : ' + y + '（小さい 整数の 比）'],
+    hint: 'まず 式で {' + segT(q, u[0], u[1]) + '|' + segT(q, u[1], u[2]) + '} いがいの 2つの 分数を かけて、その 逆数を 出す',
+    fig: figure(q, Object.assign({ want: W, givens, wantAns: true }, figOpt || {})), ok: c.length >= 3,
+  };
+}
+// 与える 比（問題文の 書き方）
+const natW = x => [SIDE[x][0], x, SIDE[x][1]];
+const aqW = () => ['A', 'Q', 'C'];
+// 第1章：求めたい 比（P/Q/R は 辺の 比、A/B/C は 内部の 比）。gi は「わかっている 比に 内部の 比が 入る」
+const thWant = q => (q.gi ? natW(FOOT[q.V]) : sideW(q.w));
+function givensOf(q) {
+  if (['thPick', 'thFox', 'mabTh'].includes(q.mode)) {
+    if (q.fig === 'mn' || SIDE[q.w] && !q.gi) return ['P', 'Q', 'R'].filter(x => x !== q.w).map(natW);   // 全部 辺の 上
+    const V = q.gi ? q.V : q.w, h = q.h || 1, Y = NEXT[V], Z = NEXT[Y], s = h === 1 ? FOOT[Z] : FOOT[Y];
+    return q.gi ? [[V, 'O', FOOT[V]], natW(s)] : [natW(s), natW(FOOT[V])];   // キツネの 顔の 辺の 比
+  }
+  if (q.mode === 'rCeva' || q.mode === 'mabCv') return ['P', 'Q', 'R'].filter(x => x !== q.w).map(x => (x === 'Q' && q.aq ? aqW() : natW(x)));
+  if (['fxLine', 'mnFoxTap', 'rFox'].includes(q.mode)) { const V = q.V, Y = NEXT[V], Z = NEXT[Y]; return [[V, 'O', FOOT[V]], natW(q.h === 1 ? FOOT[Z] : FOOT[Y])]; }   // わかっている 比に 内部の 比
+  if (['rMene', 'mabAr', 'fxTri', 'mabFx', 'mnTap', 'mabMn'].includes(q.mode)) {
+    const V = q.V, Y = NEXT[V], Z = NEXT[Y], s = q.h === 1 ? FOOT[Z] : FOOT[Y];
+    return [s === 'Q' && q.aq ? aqW() : natW(s), natW(FOOT[V])];
+  }
+  if (q.mode === 'rFox' || q.mode === 'mabMn') {
+    return ['P', 'Q', 'R'].filter(x => x !== q.w).map(x => {
+      if (x !== q.ext || q.sty !== 'whole') return natW(x);
+      const [s1, s2] = SIDE[x], [a, b] = q.g[x], far = a > b ? s1 : s2, near = a > b ? s2 : s1;
+      return [far, near, x];
+    });
+  }
+  return [];
+}
+function steps(q) {
+  const { tab } = model(q), m = q.mode;
+  switch (m) {
+    case 'thPick': case 'thFox': return [thStep(q, tab, thWant(q), givensOf(q))];
+    case 'mabTh': return [kindStep(q, tab, thWant(q), givensOf(q)), thStep(q, tab, thWant(q), givensOf(q), '②')];
+    case 'cvTapB': case 'cvTapX': return [tapStep(q, cevaCyc(q.st), 'cv')];
+    case 'mabCv': { const g = givensOf(q), W = sideW(q.w), cyc = cevaCyc('B'); return [tapStep(q, cyc, 'cv'), eqStep(q, tab, cyc, g, W, '②')]; }
+    case 'fxTri': case 'fxLine': case 'mabFx': {
+      const g = givensOf(q), W = q.mode === 'fxLine' ? natW(FOOT[q.V]) : [q.V, 'O', FOOT[q.V]], s1 = pickStep(q, tab, W, g, m === 'mabFx' ? '①' : '');
+      return m === 'mabFx' ? [s1, eqStep(q, tab, foxCyc(q.V, q.h), g, W, '②')] : [s1];
+    }
+    case 'mnTap': case 'mnFoxTap': case 'mabMn': case 'rMene': case 'rFox': {
+      if (q.fig === 'mn') return [tapStep(q, mnCyc(q), 'mn')];   // 約束の 画面の 図（三角形と 直線 ℓ）だけ
+      // メネラウスの 流れ：① キツネの 顔の 4本 → ② 動き方を タップ →（③ 数を 入れた 式 ／ ③ 比）
+      const g = givensOf(q), gi = ['mnFoxTap', 'rFox'].includes(m), W = gi ? natW(FOOT[q.V]) : [q.V, 'O', FOOT[q.V]], cyc = foxCyc(q.V, q.h), fx = [q.V, q.h];
+      const s1 = pickStep(q, tab, W, g, '①');
+      const s2 = tapStep(q, cyc, 'fox', { fox: fx, givens: g, want: W, tab, num: '②', figOpt: { fox: fx, foxAsk: true, foxShade: 'shg', want: W, givens: g } });
+      if (m === 'mnTap' || m === 'mnFoxTap') return [s1, s2];
+      if (m === 'mabMn') return [s1, s2, eqStep(q, tab, cyc, g, W, '③')];
+      const e = eqStep(q, tab, cyc, g, W, '③');
+      return [s1, s2, ratioStep(q, tab, W, g, e.parts, e.sols, '③', { foxAns: fx })];
+    }
+    case 'rCeva': {
+      const g = givensOf(q), W = sideW(q.w), cyc = cevaCyc('B');
+      const s1 = thStep(q, tab, W, g, '①'), s2 = eqStep(q, tab, cyc, g, W, '②');
+      return [s1, s2, ratioStep(q, tab, W, g, s2.parts, s2.sols, '③', {})];
+    }
+    case 'mabAr': {
+      const g = givensOf(q), V = q.V, Y = NEXT[V], Z = NEXT[Y], X = FOOT[V], W = [V, 'O', X], cyc = foxCyc(V, q.h);
+      const T = '△O' + Y + Z, gv = g.map(s => stmtT(q, tab, s)).join('、'), [a, b] = ratioOf(tab, ...W), s = a + b;
+      const parts = eqParts(q, tab, cyc, g);
+      const s1 = {
+        short: ['▼ ① 何の 比で よみかえる？', gv + '。' + T + ' : △ABC は 何の 比で よみかえる？'],
+        exam: '図の △ABC に おいて、' + gv + ' で ある。' + T + ' : △ABC は どの 線分の 比と 等しいか。',
+        options: [o('O' + X + ' : ' + V + X, []), o(wantT(q, natW(X)), ['arBase']), o(V + 'O : ' + V + X, ['arPart'])],
+        reason: ['底辺 ' + Y + Z + ' が 同じ → 面積の 比は 高さの 比', '高さの 比は O と ' + V + ' から ' + Y + Z + ' まで ＝ O' + X + ' : ' + V + X],
+        hint: 'まず ' + T + ' と △ABC で 同じ もの（底辺 ' + Y + Z + '）を 見つける',
+        fig: figure(q, { givens: g, area: V, areaAns: true }),
+      };
+      const eq = eqStep(q, tab, cyc, g, W, '②');
+      const s2 = ratioStep(q, tab, W, g, parts, eq.sols, '②', { foxAns: [V, q.h], area: V });
+      s2.reason = ['内部の 比 → メネラウス（△' + foxTri(V, q.h) + ' と 直線 ' + foxLine(V, q.h) + '）', wantT(q, W) + ' ＝ ' + a + ' : ' + b];
+      s2.hint = 'まず キツネの 顔（△' + foxTri(V, q.h) + ' と 直線 ' + foxLine(V, q.h) + '）を 見つけて、' + cyc.tri[0] + ' から 1周する';
+      const c3 = [o(b / gcd(b, s) + ' : ' + s / gcd(b, s), [])], seen = new Set([red(b, s).join(':')]);
+      [[red(a, s), 'arPart'], [red(b, a), 'arWhole']].forEach(([r, ty]) => { if (!seen.has(r.join(':'))) { seen.add(r.join(':')); c3.push(o(r[0] + ' : ' + r[1], [ty])); } });
+      const s3 = {
+        short: ['▼ ③ ' + T + ' : △ABC は？', gv + '。' + T + ' : △ABC ＝ ？'],
+        exam: '図の △ABC に おいて、' + gv + ' で ある。' + T + ' : △ABC を 求めよ。',
+        options: c3,
+        reason: [wantT(q, W) + ' ＝ ' + a + ' : ' + b + ' → O' + X + ' : ' + V + X + ' ＝ ' + b + ' : ' + s, T + ' : △ABC ＝ O' + X + ' : ' + V + X + ' ＝ ' + red(b, s).join(' : ')],
+        hint: 'まず ' + wantT(q, W) + ' から O' + X + ' : ' + V + X + ' を 作る（' + V + X + ' は 全体）',
+        fig: figure(q, { givens: g, area: V, areaAns: true, areaRatio: true }), ok: c3.length === 3,
+      };
+      return [s1, s2, s3];
+    }
+  }
+  throw new Error('mode ' + m);
+}
+
+// ---------- 問題の 形（＝ モンスター）と 章 ----------
+const CHAPTERS = [
+  { ch: 1, lv: 1, title: '第1章 どっちの 定理？', forms: ['thPick', 'thFox'], plays: [['thPick', 'thFox'], ['thFox', 'thPick'], ['thPick', 'MAB']], intro: true,
+    mab: { form: 'mabTh', name: 'ミキワメヌシ', sprite: '🔮', tip: 'ほしい 比は 辺の 上か 内部か → 辺は チェバ、内部は メネラウス' },
+    boss: { name: 'テイリオウ', sprite: '🏰' } },
+  { ch: 2, lv: 2, title: '第2章 チェバの 順番', forms: ['cvTapB', 'cvTapX'], plays: [['cvTapB', 'cvTapX'], ['cvTapX', 'cvTapB'], ['cvTapB', 'MAB']],
+    mab: { form: 'mabCv', name: 'チェバヌシ', sprite: '🌀', tip: 'B から 1周 → 問題の 比を 式の 向きに 入れる' },
+    boss: { name: 'チェバオウ', sprite: '🗿' } },
+  { ch: 3, lv: 3, title: '第3章 キツネの 顔を 見つける', forms: ['fxTri', 'fxLine'], plays: [['fxTri', 'fxLine'], ['fxLine', 'fxTri'], ['fxTri', 'MAB']],
+    mab: { form: 'mabFx', name: 'バケギツネ', sprite: '🎭', tip: 'キツネの 顔の 4本 → その 1周で 数を 入れた 式' },
+    boss: { name: 'キツネオウ', sprite: '🏯' } },
+  { ch: 4, lv: 4, title: '第4章 メネラウスの 順番', forms: ['mnTap', 'mnFoxTap'], plays: [['mnTap', 'mnFoxTap'], ['mnFoxTap', 'mnTap'], ['mnTap', 'MAB']],
+    mab: { form: 'mabMn', name: 'メネヌシ', sprite: '🌊', tip: 'キツネの 4本 → 1周 → 外の 点まで の 長さを 入れた 式' },
+    boss: { name: 'メネラウオウ', sprite: '🏔️' } },
+  { ch: 5, lv: 5, title: '第5章 比を 求める', forms: ['rCeva', 'rMene', 'rFox'], plays: [['rCeva', 'rMene'], ['rFox', 'rCeva'], ['rMene', 'MAB']], bossForms: ['rCeva', 'rMene', 'rFox', 'mabAr'],
+    mab: { form: 'mabAr', name: 'メンセキヨミ', sprite: '🧩', tip: '底辺が 等しい → 面積比は 高さの 比 → OP : AP（内部の 比 → メネラウス）' },
+    boss: { name: 'ヒリツオウ', sprite: '⚖️' } },
+  { ch: 6, final: true, title: 'さいごの 章', boss: { name: 'チェバメネテイ', sprite: '⚜️' } },
+];
+const DATA_V = 1;
+function migrateProg() { return { stars: {}, gained: 0, done: false, v: DATA_V }; }
+function migrateZk() { return { _v: DATA_V }; }
+const NORM_CH = CHAPTERS.filter(c => !c.final);
+const FORM_LV = {};
+NORM_CH.forEach(c => c.forms.forEach(f => { FORM_LV[f] = c.lv; }));
+NORM_CH.forEach(c => { FORM_LV[c.mab.form] = c.lv; });
+const MAB_FORMS = NORM_CH.map(c => c.mab.form);
+const MONSTERS = [
+  ['thPick', 'ドッチカナ', '🤔', '辺の 比 → チェバ、内部の 比 → メネラウス'],
+  ['thFox', 'キツネガオ', '🦊', '辺の 比が ほしくても、わかっている 比に 内部の 比 → キツネの 顔 → メネラウス'],
+  ['cvTapB', 'トナリトナリ', '👣', 'B → P → C → Q → A → R → B（となり となり…）'],
+  ['cvTapX', 'ヒトマワリ', '🔄', 'どの 頂点から でも、頂点と 休憩ポイントを 交互に 1周'],
+  ['fxTri', 'キツネサガシ', '🔍', 'わかっている 比の 線 ＋ 求めたい 内部の 比の 線 → キツネの 顔の 4本'],
+  ['fxLine', 'ヨコギリ', '✂️', 'わかっている 比に 内部の 比 → キツネの 顔の 4本（横切る 直線は 頂点を 通らない）'],
+  ['mnTap', 'イッテカエル', '🪃', '① キツネの 4本 → ② 外の 点まで 行って、帰ろうと して、となり となり'],
+  ['mnFoxTap', 'オリカエシ', '🔁', 'わかっている 内部の 比 → キツネ → 行って 帰ろうと して 1周'],
+  ['rCeva', 'ヘンノヒ', '📐', '辺の 比 → チェバ → 数を 入れて 1つ 残った 分数'],
+  ['rMene', 'ナカノヒ', '🎯', '内部の 比 → キツネの 4本 → 1周 → 比'],
+  ['rFox', 'キツネノヒ', '🧮', 'わかっている 内部の 比 から 辺の 比 → キツネ → 1周 → 比'],
+].map(([id, name, sprite, tip]) => ({ id, ch: FORM_LV[id], name, sprite, tip }))
+  .concat(NORM_CH.map(c => ({ id: c.mab.form, ch: c.ch, name: c.mab.name, sprite: c.mab.sprite, tip: c.mab.tip, mab: true })))
+  .concat(NORM_CH.map(c => ({ id: 'boss' + c.ch, ch: c.ch, name: c.boss.name, sprite: c.boss.sprite, tip: '中ボス：' + c.title.replace(/^第\d章 /, '') + 'を 問題集の ことばで', boss: true })))
+  .concat([{ id: 'final', ch: CHAPTERS.length, name: CHAPTERS[CHAPTERS.length - 1].boss.name, sprite: CHAPTERS[CHAPTERS.length - 1].boss.sprite, tip: 'さいごの ボス：' + NORM_CH.length + 'つの 章を 問題集の ことばで', boss: true }]);
+const monsterOf = id => MONSTERS.find(m => m.id === id);
+function zukanAfter(zk, e) {
+  const z = Object.assign({}, zk), cur = z[e.id] || 0;
+  if (e.type === 'kill') z[e.id] = Math.max(cur, 1);
+  if (e.type === 'master') z[e.id] = 2;
+  if (e.type === 'boss') z[e.id] = Math.max(cur, e.noMiss ? 2 : 1);
+  return z;
+}
+function zukanCount(zk) {
+  const v = m => zk[m.id] || 0, base = MONSTERS.filter(m => !m.mab), mabs = MONSTERS.filter(m => m.mab);
+  const got = MONSTERS.filter(m => v(m) >= 1).length, mas = MONSTERS.filter(m => v(m) >= 2).length;
+  return { got, mas, all: MONSTERS.length, mabGot: mabs.filter(m => v(m) >= 1).length, mabAll: mabs.length,
+    comp: base.every(m => v(m) >= 1), shin: MONSTERS.every(m => v(m) >= 1), perfect: MONSTERS.every(m => v(m) >= 2) };
+}
+
+// ---------- 問題を つくる ----------
+const AREA_M = MASS.filter(([a, b, c]) => a !== b + c && b !== c + a && c !== a + b);
+const GEN = {
+  thPick: rng => { const b = { fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS) }, V = pick(rng, V3), h = pick(rng, [1, 2]);   // 全部 辺の 上 ／ 求めたい 比が 内部
+    return Object.assign(b, rng() < 0.5 ? { w: pick(rng, ['P', 'Q', 'R']) } : { w: V, h }); },
+  thFox: rng => { const V = pick(rng, V3); return Object.assign({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS) }, rng() < 0.6 ? { w: FOOT[V], gi: true, V, h: pick(rng, [1, 2]) } : { w: pick(rng, ['P', 'Q', 'R']) }); },   // 辺の 比が ほしくても、わかっている 比に 内部の 比 → メネラウス
+  mabTh: rng => GEN.thPick(rng),
+  cvTapB: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), st: 'B' }),
+  cvTapX: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), st: pick(rng, ['A', 'C', 'A', 'C', 'B']), nm: pick(rng, ['PQR', 'DEF']) }),
+  mabCv: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), st: 'B', w: pick(rng, ['P', 'Q', 'R']), aq: rng() < 0.3 }),
+  fxTri: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), V: pick(rng, V3), h: pick(rng, [1, 2]) }),
+  fxLine: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), V: pick(rng, V3), h: pick(rng, [1, 2]) }),
+  mabFx: rng => GEN.fxTri(rng),
+  mnTap: rng => GEN.fxTri(rng),
+  mnFoxTap: rng => GEN.fxTri(rng),
+  mabMn: rng => GEN.fxTri(rng),
+  rCeva: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), w: pick(rng, ['P', 'Q', 'R']), aq: rng() < 0.3 }),
+  rMene: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), V: pick(rng, V3), h: pick(rng, [1, 2]), aq: rng() < 0.3 }),
+  rFox: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, MASS), V: pick(rng, V3), h: pick(rng, [1, 2]) }),
+  mabAr: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, AREA_M), V: pick(rng, V3), h: pick(rng, [1, 2]), aq: rng() < 0.3 }),
+};
+const foxOfPrm = q => (q.fig !== 'cv' ? null : q.V ? [q.V, q.h || 1] : ['thPick', 'thFox', 'mabTh'].includes(q.mode) && V3.includes(q.w) ? [q.w, q.h || 1] : null);   // その 問題で 見せる キツネの 顔
+const MIN_D = 0.14, FOX_MIN = 0.3;   // 点どうしの きょり・キツネの 三角形の いちばん 短い 辺（BC ＝ 1）。かたまって 見えない 図に しない
+// 数が 大きすぎない・選択肢が そろう（値・意味が かぶらない）問題だけ
+function usable(q) {
+  let S;
+  try { S = steps(q); } catch (e) { return false; }
+  if (S.some(s => s.ok === false)) return false;
+  if (q.sty === 'whole' && q.w === q.ext) return false;
+  const P = model(q).P, ks = Object.keys(P);   // 点どうしが 近すぎない（名前が 重ならない・タップで えらべる）
+  for (let i = 0; i < ks.length; i++) for (let j = 0; j < i; j++) if (Math.hypot(P[ks[i]][0] - P[ks[j]][0], P[ks[i]][1] - P[ks[j]][1]) < MIN_D) return false;
+  const fx = foxOfPrm(q);
+  if (fx) { const t = foxTri(...fx).split('').map(x => P[x]); for (let i = 0; i < 3; i++) if (Math.hypot(t[i][0] - t[(i + 1) % 3][0], t[i][1] - t[(i + 1) % 3][1]) < FOX_MIN) return false; }
+  return true;
+}
+function genPrm(form, rng) {
+  for (let i = 0; i < 200; i++) { const q = Object.assign({ mode: form, f: form }, GEN[form](rng)); if (usable(q)) return q; }
+  throw new Error('作れない ' + form);
+}
+const TWO = MAB_FORMS.concat(['rCeva', 'rMene', 'rFox']);
+const MARK = ['①', '②', '③'];
+function build(prm, rng, opt = {}) {
+  const q = prm, form = q.f || q.mode, lv = FORM_LV[form];
+  const p = { lv, kind: 'fwd', prm, mode: q.mode, form };
+  const S = steps(q).map(s => Object.assign({}, s, { options: s.options ? (s.fixed ? s.options.slice() : shuffle(rng, s.options)).map(x => ({ text: x.text, types: x.types, correct: !x.types.length })) : null }));
+  S.forEach((s, i) => {
+    s.label = s.short[0]; s.display = s.short[1];
+    if (opt.boss) {
+      s.label = '▼ 問題集の ことばで' + (S.length > 1 ? '（' + MARK[i] + '）' : ''); s.display = s.exam; s.examMode = true;
+      const sh = S[0].short[1].length > 30 ? monsterOf(form).name + 'の 問題' : S[0].short[1];
+      s.reason = s.reason.concat(['この 問題は 第' + lv + '章の「' + sh + '」と おなじ']);
+    }
+  });
+  p.exam = !!opt.boss;
+  if (S.length > 1) p.steps = S;
+  p.allSteps = S;
+  useStep(p, 0);
+  return p;
+}
+function useStep(p, i) {
+  const st = p.allSteps[i];
+  Object.assign(p, { stepIdx: i, label: st.label, display: st.display, reason: st.reason, options: st.options, tap: st.tap || null, pick: st.pick || null, fig: st.fig, hint: st.hint, eq: !!st.eq });
+  p.long = p.display.length > 26;
+  return p;
+}
+
+// ---------- 判定・間違い方 ----------
+function tapTypes(p, seq) {   // seq ＝ スタートの あとに タップした 6点
+  const t = p.tap, dir = seq[0] === t.bwd[1] ? t.bwd : t.fwd;
+  for (let i = 0; i < 6; i++) {
+    const x = seq[i], want = dir[i + 1];
+    if (x === want) continue;
+    if (i === 5) return ['tGoal'];
+    if (i % 2 === 0) return [t.verts.includes(x) ? 'tSkip' : t.sides.includes(x) ? 'tFar' : 'tOff'];
+    return ['tEnd'];
+  }
+  return [];
+}
+function pickTypes(p, sel) {   // キツネの 4本の まちがい
+  const k = p.pick;
+  if (!sel.includes(k.want)) return ['fxNoWant'];
+  if (k.given.some(g => !sel.includes(g))) return ['fxNoGiven'];
+  return ['fxNotFox'];
+}
+function judge(p, ans) {
+  if (p.pick) return (ans.sel || []).slice().sort().join() === p.pick.ans.join();
+  if (p.tap) { const s = ans.seq || []; return s.length === 6 && (s.join() === p.tap.fwd.slice(1).join() || s.join() === p.tap.bwd.slice(1).join()); }
+  return p.options[ans.opt].correct;
+}
+function classify(p, ans) { return { types: p.pick ? pickTypes(p, ans.sel || []) : p.tap ? tapTypes(p, (ans.seq || []).concat(Array(6).fill('')).slice(0, 6)) : p.options[ans.opt].types.slice() }; }
+const TYPE_TEXT = {
+  thIn: '内部の 比（頂点から 出た 線の 上）が 入る → メネラウス', thSide: 'わかっている 比も 求めたい 比も 全部 辺の 上 → チェバ', 
+  kIn: '頂点から 出た 線の 上の 比が ある → 内部の 比', kSide: 'どの 比も 三角形の 辺の 上',
+  fxNoWant: '求めたい 比を 通る 線が ない', fxNoGiven: 'この キツネには わかって いる 比が ない（数が のって いる 線を 使う）', fxNotFox: '三角形の 3辺と、頂点を 通らない 直線 1本 に なって いない',
+  tSkip: '頂点の つぎは 辺の 休憩ポイント（頂点から 頂点へ とばない）', tFar: 'となりの 辺の 休憩ポイントへ（向かいの 辺 では ない）',
+  tOff: 'その 点は 三角形の 辺（延長も ふくむ）の 上に ない', tEnd: '休憩ポイントの つぎは その 辺の もう一方の 頂点', tGoal: '1周して スタートに もどる',
+  eqFlip: '比の 向き：スタートから 進む 向きに 分子 → 分母', eqWhole: '行って 帰ろうと して：分子は スタートから 外の 点 までの 長さ',
+  rSwap: '聞かれた 順の 比に する（逆に しない）', rFromEq: '式の 数の 入れかたを たしかめる（向き・外の 点 まで）', rWhole: 'ほしい 2つの 線分 どうしの 比（全体と くらべない）',
+  arBase: '底辺 が 同じ → 高さの 比（底辺の 比 では ない）', arPart: '高さの 比は O と 頂点から 底辺 まで（O から の 線分と 全体）', arWhole: '△ABC の 高さは 頂点から の 線分 全体',
+};
+const MASTER_TEXT = {
+  thIn: '内部の 比', thSide: '辺の 比', kIn: '辺の 比', kSide: '内部の 比', fxNoWant: 'キツネの 線', fxNoGiven: 'キツネの 線', fxNotFox: 'キツネの 線',
+  tSkip: '休憩ポイント', tFar: 'となりの 辺', tOff: '辺の 上の 点', tEnd: 'となりの 頂点', tGoal: '1周', eqFlip: '比の 向き', eqWhole: '外の 点 まで', rSwap: '比の 順', rFromEq: '数を 入れた 式', rWhole: '比の 読み方',
+  arBase: '高さの 比', arPart: '高さの 比', arWhole: '高さの 比',
+};
+function describe(p, cls) { return cls.types.map(t => TYPE_TEXT[t]).join('、'); }
+function masterText(t) { return MASTER_TEXT[t]; }
+function likeOK(q, m) { return q.mode === m.mode && (m.fig === undefined || q.fig === m.fig); }
+
+// ---------- 章・ダメージ・HP ----------
+const MID_HP = 2, FINAL_HP = NORM_CH.length;
+const zakoHP = L => 1 + Math.floor(L / 2);
+const midHP = L => 7 + Math.floor(L / 2);
+const finalHP = L => (FINAL_HP === 5 ? 18 + 4 * L : 14 + 3 * L);
+const CRIT = 1 / 8;
+const comboBonus = n => Math.min(Math.max(n - 1, 0), 3);
+function damage(p, L, ev, rng, combo = 0) {
+  const d = (p.kind === 'rev' || p.exam ? 3 : 2) + (L - 1) + (p.target && p.target.lv ? 1 : 0) + comboBonus(combo);
+  const crit = (ev && ev.mastered && ev.mastered.length > 0) || rng() < CRIT;
+  return { d: crit ? d * 2 : d, crit };
+}
+const PLAYS = 3;
+function ri(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }
+function makeSlots(ch, rng, opt = {}) {
+  const C = CHAPTERS[ch - 1], mid = [...Array(MID_HP).keys()].map(() => ({ lv: C.lv, boss: true }));
+  if (C.final) return shuffle(rng, NORM_CH.map(c => c.lv)).map(lv => ({ lv, boss: true }));
+  const play = opt.play === undefined ? ri(rng, 0, PLAYS - 1) : Math.min(opt.play, PLAYS - 1);
+  return C.plays[play].map(f => (f === 'MAB' ? { lv: C.lv, form: C.mab.form, mab: true, play } : { lv: C.lv, form: f, play })).concat(mid.map(s => Object.assign(s, { play })));
+}
+function newContext() { return { recent: [], recentTri: [], recentNum: [], lastAns: {}, weak: {}, log: [] }; }
+const shapeKey = prm => prm.fig + prm.an.join(',');
+const numKey = prm => (prm.m ? 'm' + prm.m.join(',') : 'g' + ['P', 'Q', 'R'].map(x => prm.g[x].join(':')).join(','));
+// 答えが 続かない ように 見る もの（どっちの 定理・キツネの 顔の 頂点）
+const ansKey = prm => (['thPick', 'thFox', 'mabTh'].includes(prm.mode) ? (prm.fig === 'mn' || !SIDE[prm.w] || prm.gi ? 'M' : 'C') : ['fxTri', 'fxLine', 'mabFx', 'mnTap', 'mnFoxTap', 'mabMn', 'rMene', 'rFox'].includes(prm.mode) ? prm.V + prm.h : null);
+const ansGrp = prm => (['thPick', 'thFox', 'mabTh'].includes(prm.mode) ? 'th' : 'fx');
+function makeProblem(slot, ctx, rng) {
+  const w = ctx.weak[slot.lv];
+  const C = CHAPTERS[slot.lv - 1], forms = slot.form ? [slot.form] : slot.boss && C.bossForms ? C.bossForms : C.forms;
+  const fresh = (prm, again) => !ctx.recent.includes(JSON.stringify(prm)) && !ctx.recentTri.includes(shapeKey(prm)) && !ctx.recentNum.includes(numKey(prm))
+    && (again || !(ansKey(prm) && (ctx.lastAns[ansGrp(prm)] || []).length >= 2 && ctx.lastAns[ansGrp(prm)].slice(-2).every(k => k === ansKey(prm))));   // 同じ 形・同じ 数の 図を 続けない。同じ 答えは 3回 続けない
+  const gen = () => genPrm(pick(rng, forms), rng);
+  let prm = null, target = false;
+  if (w) for (let i = 0; i < 200 && !prm; i++) { const c = gen(); if (likeOK(c, w.like) && fresh(c, true)) { prm = c; target = true; } }
+  for (let i = 0; i < 200 && !prm; i++) { const c = gen(); if (fresh(c)) prm = c; }
+  if (!prm) prm = gen();
+  const p = build(prm, rng, { boss: !!slot.boss });
+  if (slot.mab) { p.mab = true; p.label = '▼ まぼろしの 問題'; p.allSteps[0].label = p.label; }
+  p.target = { lv: target };
+  p.key = JSON.stringify(prm);
+  ctx.recent.push(p.key); if (ctx.recent.length > 8) ctx.recent.shift();
+  ctx.recentTri = ctx.recentTri.concat([shapeKey(prm)]).slice(-2);
+  ctx.recentNum = ctx.recentNum.concat([numKey(prm)]).slice(-2);
+  if (ansKey(prm)) ctx.lastAns[ansGrp(prm)] = (ctx.lastAns[ansGrp(prm)] || []).concat([ansKey(prm)]).slice(-3);
+  return p;
+}
+function record(ctx, p, ok, cls, ms, hinted) {
+  const ev = { lv: p.lv, kind: p.kind, mode: p.mode, form: p.form, ok, types: cls ? cls.types : [], target: p.target, ms, mastered: [], hinted: !!hinted };
+  const w = ctx.weak[p.lv];
+  if (ok) {
+    if (p.target.lv && w && !hinted && ++w.got >= 2) { ev.mastered.push(...w.types); delete ctx.weak[p.lv]; }
+  } else {
+    const main = cls.types.slice();
+    if (main.length) ctx.weak[p.lv] = { types: main, like: p.prm, got: 0 };
+    else if (w && p.target.lv) w.got = 0;
+  }
+  ctx.log.push(ev);
+  return ev;
+}
+
+G.CevaCore = {
+  FIG, V3, NEXT, SIDE, FOOT, SHAPES, MASS, MN, AREA_M, NOTE_M, DATA_V, migrateProg, migrateZk, triPts, model, figure, fwd, bwd, cevaCyc, foxCyc, mnCyc, foxTri, foxLine,
+  steps, CHAPTERS, NORM_CH, FORM_LV, MONSTERS, MAB_FORMS, TWO, monsterOf, zukanAfter, zukanCount, GEN, genPrm, build, useStep, judge, classify, tapTypes,
+  describe, masterText, likeOK, TYPE_TEXT, MASTER_TEXT, MID_HP, FINAL_HP, zakoHP, midHP, finalHP, CRIT, comboBonus, damage, makeSlots, PLAYS,
+  newContext, makeProblem, record, mulberry32, shapeKey, numKey, ansKey, ansGrp, gcd, MIN_D, FOX_MIN, usable, LINES, foxLines, foxOfPrm, pickTypes,
+};
+})(typeof window !== 'undefined' ? window : this);
+</script>
+<!-- ========== 画面 ========== -->
+<script>
+(function () {
+'use strict';
+const C = window.CevaCore;
+const MAX_LIVES = 3;
+const rng = Math.random;
+const $ = id => document.getElementById(id);
+const canvas = $('plane');
+const wrap = $('planeWrap');
+const gameEl = $('game');
+const monsterEl = $('monster');
+const optBtns = [...document.querySelectorAll('#controls .opt')];
+const ZK_KEY = 'ceva-zukan', PROG_KEY = 'ceva-progress', TUT_KEY = 'ceva-tut';
+const MARK = ['①', '②', '③'];
+
+const state = {
+  ch: 1, slots: [], slotIdx: 0, hp: 1, maxHp: 1, lives: MAX_LIVES, combo: 0,
+  problem: null, opt: -1, seq: [],
+  phase: 'idle',        // 'play' | 'busy' | 'next'
+  reveal: false, tut: null, hintUsed: false,
+  ctx: C.newContext(), onNext: null, bossMiss: false, stepFail: null,
+};
+const chap = () => C.CHAPTERS[state.ch - 1];
+const nNormal = () => (chap().final ? 0 : state.nZako);
+const atBoss = () => state.slotIdx >= nNormal();
+const bossId = () => (chap().final ? 'final' : 'boss' + chap().ch);
+// 式の 文字を TeX 風の HTML に する（{分子|分母} は 横線の 分数）
+function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+const FR = (a, b) => '<span class="fr"><span class="nu">' + a + '</span><span class="de">' + b + '</span></span>';
+function mathHTML(text) { return esc(text).replace(/\{([^{}|]*)\|([^{}]*)\}/g, (m, a, b) => FR(a, b)); }
+const p = () => state.problem;
+const isTap = q => !!(q && q.tap);
+const isPick = q => !!(q && q.pick);   // キツネの 顔の 線を 4本 えらぶ
+
+// ---------- 図鑑の きろく ----------
+let memZk = { _v: C.DATA_V };
+function loadZk() {
+  try {
+    const z = JSON.parse(localStorage.getItem(ZK_KEY) || 'null');
+    if (!z) return memZk;
+    if (!(z._v >= C.DATA_V)) { const m = C.migrateZk(z); saveZk(m); return m; }
+    return z;
+  } catch (e) { return memZk; }
+}
+function saveZk(z) { z = Object.assign({}, z, { _v: C.DATA_V }); memZk = z; try { localStorage.setItem(ZK_KEY, JSON.stringify(z)); } catch (e) { /* 保存できなくても その回は 遊べる */ } }
+function zkEvent(e, lines) {
+  const before = loadZk(), after = C.zukanAfter(before, e), m = C.monsterOf(e.id);
+  saveZk(after);
+  if (!before[e.id] && after[e.id]) lines.push('📖 ずかんに「' + m.name + '」が のった！' + (after[e.id] >= 2 ? '（◎）' : ''));
+  else if ((before[e.id] || 0) < 2 && after[e.id] >= 2) lines.push('📖「' + m.name + '」が ◎ に なった！');
+}
+function compText(zk) { const k = C.zukanCount(zk); return k.perfect ? '👑 かんぜん コンプ' : k.shin ? '👑 しんの コンプ' : k.comp ? '👑 ずかん コンプ！' : ''; }
+function renderTitleComp() { const t = compText(loadZk()); $('compTitle').textContent = t; $('compTitle').classList.toggle('hidden', !t); }
+
+// ---------- 表示 ----------
+function renderStatus() {
+  const c = chap(), n = nNormal(), L = heroLV();
+  $('levelDisplay').textContent = 'LV ' + L;
+  $('attackDisplay').textContent = String(attack(L));
+  $('livesDisplay').innerHTML = '♥'.repeat(Math.max(0, state.lives)) + '<span class="empty">' + '♡'.repeat(MAX_LIVES - Math.max(0, state.lives)) + '</span>';
+  $('enemyHpDisplay').textContent = 'HP ' + Math.max(0, state.hp) + '/' + state.maxHp;
+  const done = Math.min(state.slotIdx, n);
+  $('progressDisplay').textContent = (c.final ? (atBoss() ? '' : 'さいごの 章　') : '第' + c.ch + '章　') +
+    (atBoss() ? c.boss.name + ' と たたかい中！' : '■'.repeat(done) + '□'.repeat(n - done) + ' ボスまで あと ' + (n - done) + 'たい');
+  if (state.tut) {
+    $('levelDisplay').textContent = 'れんしゅう';
+    $('progressDisplay').textContent = 'れんしゅう ' + (state.tut.i + 1) + '/' + TUT.length;
+  }
+}
+function appear() {
+  if (p() && p().mab && !state.tut) { mabWarn(); return 'まぼろしの ' + enemyNow().name + 'が あらわれた！'; }
+  return enemyNow().name + 'が　あらわれた！';
+}
+function warnTop(el) { const g = gameEl.getBoundingClientRect(), m = $('message').getBoundingClientRect(); el.style.top = Math.max(0, m.top - g.top) + 'px'; }
+function mabWarn() {
+  const el = document.createElement('div'); el.className = 'boss-warn mab'; el.textContent = '✨ まぼろし ✨';
+  warnTop(el); gameEl.appendChild(el); setTimeout(() => el.remove(), 2000); flashScreen(); setTimeout(flashScreen, 200);
+}
+function enemyNow() { const c = chap(); return atBoss() ? c.boss : C.monsterOf(p() ? p().form : c.forms[0]); }
+function renderEnemy() {
+  const c = chap(), boss = atBoss() && !state.tut, e = state.tut ? { name: 'まと', sprite: '🎯' } : enemyNow();
+  monsterEl.textContent = e.sprite;
+  monsterEl.className = boss ? 'boss' : p() && p().mab && !state.tut ? 'mab' : '';
+  $('monsterName').textContent = e.name; $('monsterName').classList.toggle('long', [...e.name].length >= 6);   // 6文字 いじょうの 名前は 小さく（問題文に かからない）
+  gameEl.classList.toggle('boss-mid', boss && !c.final);
+  gameEl.classList.toggle('boss-final', boss && !!c.final);
+}
+function bossWarn(final) {
+  const el = document.createElement('div');
+  el.className = 'boss-warn' + (final ? ' final' : '');
+  el.textContent = final ? '⚠ BOSS ⚠' : '⚠ 中ボス ⚠';
+  warnTop(el); gameEl.appendChild(el); setTimeout(() => el.remove(), 2000);
+}
+const PUNC = t => t.replace(/。/g, '．').replace(/、/g, '，');   // 問題文は 教科書と おなじ「，」「．」
+// 問題集の ことばは「図の △ABC に おいて、」「〜で ある。」の あとで 改行
+function examLines(t) {
+  const out = []; let rest = t;
+  for (const re of [/^.*?(?:に おいて|と 直線 ℓ で|△ABC で)、/, /^.*?(?:で ある|と する)。/]) { const m = rest.match(re); if (m && m[0].length < rest.length) { out.push(m[0]); rest = rest.slice(m[0].length); } }
+  out.push(rest);
+  return out;
+}
+const NBOP = t => t.replace(/ ([＝＋−:×→]) /g, '\u00a0$1 ').replace(/(直線|点|△[A-Z]{3}|[A-Z]{2}) (?=[A-Zℓ:])/g, '$1\u00a0').replace(/([A-Z\d]) [:：\u00a0]*: ([A-Z\d])/g, '$1\u00a0:\u00a0$2').replace(/([A-Z\d])\u00a0: ([A-Z\d])/g, '$1\u00a0:\u00a0$2');   // 式・「直線 AD」「AR : RB」「3 : 2」の 途中で 改行しない
+function renderProblem() {
+  const q = p(), el = $('problemExpr');
+  $('problemLabel').textContent = q.label;
+  const wrapIt = q.exam || q.long;
+  if (wrapIt) el.innerHTML = (q.exam ? examLines(q.display) : q.display.split(/(?<=。)/).filter(x => x)).map(x => mathHTML(NBOP(PUNC(x)))).join('<br>');
+  else el.innerHTML = q.display.split(/(?<=。)/).filter(x => x).map(x => '<span class="nw">' + mathHTML(NBOP(PUNC(x))) + '</span>').join('<br>');
+  el.classList.toggle('exam', !!wrapIt);
+  el.classList.toggle('long', !wrapIt && q.display.length > 18);
+  fitProblem();
+}
+function fitProblem() {
+  const el = $('problemExpr');
+  el.querySelectorAll('.nw').forEach(nw => {
+    nw.style.fontSize = ''; nw.style.whiteSpace = '';
+    let size = parseFloat(getComputedStyle(nw).fontSize);
+    while (nw.scrollWidth > el.clientWidth && size > 10) { size -= 1; nw.style.fontSize = size + 'px'; }
+    if (nw.scrollWidth > el.clientWidth) nw.style.whiteSpace = 'normal';
+  });
+}
+function show(el, on) { el.classList.toggle('hidden', !on); }
+function renderMapBtn() { $('mapBtn').classList.toggle('hidden', !!state.tut || !(state.phase === 'play' || state.phase === 'next')); }
+function renderHint() {
+  const q = p(), on = !!q && !!q.hint && !state.tut && state.phase === 'play';
+  $('hintBtn').classList.toggle('hidden', !on);
+  $('hintBtn').classList.toggle('used', state.hintUsed);
+}
+function renderControls() {
+  renderMapBtn(); renderHint();
+  const q = p(), next = state.phase === 'next', tap = isTap(q), hasOpt = !!q && !!q.options && !tap && !isPick(q), n = hasOpt ? q.options.length : 0;
+  $('controls').classList.toggle('three', false);
+  $('controls').classList.toggle('tapmode', tap && !next);
+  canvas.classList.toggle('tapmode', (tap || isPick(q)) && state.phase === 'play');
+  optBtns.forEach((b, i) => {
+    show(b, hasOpt && i < n);
+    if (!hasOpt || i >= n) return;
+    const t = q.options[i].text;
+    b.innerHTML = t.split('、').map(x => '<span class="nw">' + mathHTML(x) + '</span>').join('、');
+    b.dataset.text = t;
+    b.classList.toggle('on', state.opt === i && !state.reveal);
+    b.classList.toggle('right', state.reveal && q.options[i].correct);
+    b.classList.toggle('wrong', state.reveal && state.opt === i && !q.options[i].correct);
+  });
+  show($('undoBtn'), tap && !next);
+  $('undoBtn').disabled = !(tap && state.phase === 'play' && state.seq.length > 0);
+  show($('decideBtn'), !next);
+  show($('nextBtn'), next);
+  $('decideBtn').disabled = !ready();
+  renderBuild();
+  fitOpts();
+}
+// タップで 組み上がる 式：{BP|PC} × {CQ|QA} × {AR|RB} ＝ 1（頂点は オレンジ、休憩ポイントは 青。まだ の ところは □）
+function eqHTML(seq) {
+  const L = i => (seq[i] ? '<span class="' + (i % 2 ? 'sd' : 'vx') + '">' + esc(seq[i]) + '</span>' : '<span class="bl">□</span>');
+  return [0, 1, 2].map(k => '<span class="nwb">' + FR(L(2 * k) + L(2 * k + 1), L(2 * k + 1) + L(2 * k + 2)) + '</span>').join(' × ') + ' ＝ 1';
+}
+function renderBuild() {
+  const q = p(), b = $('build');
+  if (!isTap(q)) { b.classList.add('hidden'); b.innerHTML = ''; return; }
+  b.classList.remove('hidden');
+  const mine = [q.tap.start].concat(state.seq);
+  b.classList.toggle('right', state.reveal && state.lastOk);
+  b.classList.toggle('ans', state.reveal && !state.lastOk);
+  if (state.reveal && !state.lastOk) b.innerHTML = '<span class="cap">ただしい 式</span>' + eqHTML(ansSeq(q));
+  else b.innerHTML = eqHTML(mine);
+}
+function ansSeq(q) { return state.seq[0] === q.tap.bwd[1] ? q.tap.bwd : q.tap.fwd; }   // 逆まわりで 始めた ときは 逆まわりの 答え
+// 選択肢の 文字が ボタンに 入りきらない ときは、文字を 小さく（14px まで）→ それでも 入らなければ 1列に して もう一度
+function fitOpts() {
+  const c = $('controls'), vis = optBtns.filter(b => !b.classList.contains('hidden')), q = p();
+  c.classList.remove('one'); optBtns.forEach(b => { b.style.fontSize = ''; });
+  if (!vis.length) return;
+  const over = () => vis.some(b => b.scrollWidth > b.clientWidth + 1);
+  const shrink = min => { let f = parseFloat(getComputedStyle(vis[0]).fontSize); while (over() && f > min) { f -= 1; vis.forEach(b => { b.style.fontSize = f + 'px'; }); } };
+  if (q && q.eq) c.classList.add('one');   // 数を 入れた 式は いつも 1列（大きい 分数で）
+  else shrink(15);
+  if (over()) { vis.forEach(b => { b.style.fontSize = ''; }); c.classList.add('one'); shrink(8); }
+  if (over()) vis.forEach(b => b.querySelectorAll('.nw').forEach(nw => { nw.style.whiteSpace = 'normal'; }));
+}
+window.__fitOpts = fitOpts;
+function ready() { const q = p(); if (!q || state.phase !== 'play') return false; return isPick(q) ? state.sel.length === 4 : isTap(q) ? state.seq.length === 6 : state.opt >= 0; }
+function setMessage(text) { $('msgText').innerHTML = mathHTML(text); $('message').scrollTop = 0; }
+
+// ---------- 図を 描く ----------
+let DPR = 1, XF = null;   // XF：図の 座標 → 画面（タップの 判定に 使う）
+function resizePlane() {
+  fitOpts();
+  const w = Math.floor(Math.min(wrap.clientWidth - 12, (wrap.clientHeight - 8) / C.FIG.ASPECT));
+  const W = Math.max(100, w), H = Math.round(W * C.FIG.ASPECT);
+  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  draw();
+  placeBtnHint(); placeTapHint();
+  if (p()) fitProblem();
+}
+const COLS = { w: '#fff', cy: '#7fe8ff', sub: 'rgba(255,255,255,0.6)', mk: '#ff9f43', pt: '#ffd84a', ok: '#4dff88', or: '#ff9f43', bl: '#6f9dff',
+  vx: '#ff9f43', sd: '#6f9dff', oo: '#ff6b6b', sh1: 'rgba(255,159,67,0.30)', sh2: 'rgba(111,157,255,0.30)', shg: 'rgba(77,255,136,0.24)' };
+const ORDER = ['poly', 'seg', 'path', 'dot', 'num', 'lab', 'tag'];   // なぞる 矢印は 線の 上、点と 名前の 下（名前が かくれない）
+function textAt(ctx, d, s, x, y, col, size, bold = true) {
+  ctx.font = (bold ? 'bold ' : '') + (size * d) + 'px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4 * d; ctx.strokeStyle = '#000a18'; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y);
+  ctx.fillStyle = col; ctx.fillText(s, x, y);
+}
+const same = (a, b) => Math.abs(a[0] - b[0]) < 1e-7 && Math.abs(a[1] - b[1]) < 1e-7;
+function onSeg(p_, a, b) { const ab = [b[0] - a[0], b[1] - a[1]], l2 = ab[0] * ab[0] + ab[1] * ab[1], t = ((p_[0] - a[0]) * ab[0] + (p_[1] - a[1]) * ab[1]) / l2; if (t <= 1e-6 || t >= 1 - 1e-6) return false; return Math.hypot(a[0] + ab[0] * t - p_[0], a[1] + ab[1] * t - p_[1]) < 1e-7; }
+// 図を 描く：たても 横も 同じ 縮尺。三角形と 外の 点が ぜんぶ 入る 大きさ
+function drawSpec(ctx, W, H, d, spec, showAns, small, paths) {
+  ctx.fillStyle = '#000a18'; ctx.fillRect(0, 0, W, H);
+  const items = spec.ask.concat(showAns ? spec.ans : []);
+  const all = []; spec.ask.concat(spec.ans).forEach(it => { ['a', 'b', 'p'].forEach(k => { if (it[k] && it.k !== 'tag') all.push(it[k]); }); if (it.ps) it.ps.forEach(q => all.push(q)); });
+  const xs = all.map(t => t[0]), ys = all.map(t => t[1]), cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const hw = Math.max(1e-6, ...xs.map(x => Math.abs(x - cx))), hh = Math.max(1e-6, ...ys.map(y => Math.abs(y - cy)));
+  const big = spec.tapFig || (paths && paths.length);   // なぞる 矢印・スタートの 札が 入る すきま
+  const mx = (small ? (big ? 24 : 14) : big ? 40 : 30) * d, my = (small ? (big ? 26 : 13) : big ? 38 : 26) * d;
+  const s = Math.min((W - 2 * mx) / (2 * hw), (H - 2 * my) / (2 * hh));
+  const X = q => [W / 2 + (q[0] - cx) * s, H / 2 - (q[1] - cy) * s];
+  if (!small) {   // テスト用：縮尺（たて ＝ 横）と 図の 点の 範囲
+    const pts = all.map(X);
+    window.__figScale = [s, s]; window.__figBox = { W, H, x0: Math.min(...pts.map(q => q[0])), x1: Math.max(...pts.map(q => q[0])), y0: Math.min(...pts.map(q => q[1])), y1: Math.max(...pts.map(q => q[1])) };
+    XF = { X, d, W, H };
+  }
+  const fs = small ? 0.75 : 1;
+  const tri = spec.tri.map(X), tc = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3];
+  const line = (a, b, col, w, dash) => { ctx.strokeStyle = col; ctx.lineWidth = w * d * fs; ctx.setLineDash(dash ? [5 * d, 4 * d] : []); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]); };
+  ctx.lineCap = 'round';
+  const labPos = [];
+  ORDER.forEach(kind => {
+    if (kind === 'path') { (paths || []).filter(pa => pa.segs).forEach(pa => pa.segs.forEach(([a, b]) => line(X(spec.pts[a]), X(spec.pts[b]), pa.col, pa.w || 7, false))); (paths || []).filter(pa => !pa.segs).forEach(pa => drawPath(ctx, X, d * fs, pa.seq.map(n => spec.pts[n]), pa.col, pa.cen ? X(pa.cen) : tc, pa.num !== false, pa.w)); return; }
+    items.filter(it => it.k === kind).forEach(it => {
+      const col = COLS[it.c] || it.c;
+      if (kind === 'poly') { ctx.fillStyle = col; ctx.beginPath(); it.ps.map(X).forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); ctx.fill(); }
+      if (kind === 'seg') line(X(it.a), X(it.b), col, it.w, it.d);
+      if (kind === 'dot') { const q = X(it.p); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(q[0], q[1], it.r * d * fs, 0, Math.PI * 2); ctx.fill(); }
+      if (kind === 'num') {
+        const a = X(it.a), b = X(it.b), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        let nv = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l];
+        const aw = it.away ? X(it.away) : tc;
+        if ((m[0] - aw[0]) * nv[0] + (m[1] - aw[1]) * nv[1] < 0) nv = [-nv[0], -nv[1]];
+        if (it.c === 'ok') nv = [-nv[0], -nv[1]];   // 答えの 数は 内がわ（問題の 数と 重ならない）
+        textAt(ctx, d, it.s, m[0] + nv[0] * 12 * d * fs, m[1] + nv[1] * 12 * d * fs, col, 14 * fs);
+      }
+      if (kind === 'lab') {   // 文字は 線が ない いちばん 広い すきまの 向きに
+        const dirs = [];
+        items.filter(o => o.k === 'seg').forEach(o => {
+          if (same(o.a, it.p)) dirs.push(o.b); else if (same(o.b, it.p)) dirs.push(o.a); else if (onSeg(it.p, o.a, o.b)) { dirs.push(o.a); dirs.push(o.b); }
+        });
+        const q = X(it.p);
+        let ang = Math.atan2(q[1] - tc[1], q[0] - tc[0]);
+        const cands = [];   // すきまの まんなか（広い じゅん）。すきまが 同じ くらいなら 三角形の 外がわへ
+        if (dirs.length) {
+          const as = dirs.map(w => { const t = X(w); return Math.atan2(t[1] - q[1], t[0] - q[0]); }).sort((x, y) => x - y);
+          as.forEach((x, i) => { const y = i + 1 < as.length ? as[i + 1] : as[0] + 2 * Math.PI, g = y - x, mdl = x + g / 2; if (g > 0.35) cands.push([g * (1 + 0.25 * Math.cos(mdl - ang)), mdl]); });
+          cands.sort((a, b) => b[0] - a[0]);
+        }
+        if (!cands.length) cands.push([1, ang]);
+        // ほかの 名前・点と 重ならない ところ（近ければ 次の すきま、少し 遠く）
+        const dots = items.filter(o => o.k === 'dot').map(o => X(o.p)).filter(o => Math.hypot(o[0] - q[0], o[1] - q[1]) > 1);
+        const fsz = (small ? 11 : W / d < 230 ? 13 : 16) * d, rr0 = (small ? 10 : W / d < 230 ? 12 : 14) * d;
+        const room = at => Math.min(at[0] - 6 * d, at[1] - 6 * d, W - 6 * d - at[0], H - 6 * d - at[1]) >= 0;
+        const score = at => Math.min(...labPos.map(o => Math.hypot(o.x * d - at[0], o.y * d - at[1]) / (1.05 * fsz)), ...dots.map(o => Math.hypot(o[0] - at[0], o[1] - at[1]) / (0.75 * fsz)), 9);
+        const tries = [];
+        for (const rr of [rr0, rr0 * 1.35, rr0 * 1.7, rr0 * 2.1]) { cands.forEach(([, a]) => tries.push([q[0] + Math.cos(a) * rr, q[1] + Math.sin(a) * rr])); for (let k = 0; k < 24; k++) tries.push([q[0] + Math.cos(k * Math.PI / 12) * rr, q[1] + Math.sin(k * Math.PI / 12) * rr]); }
+        let at = tries.find(t => room(t) && score(t) >= 1);   // すきまの まんなか → まわり 16方向 → 少し 遠く
+        if (!at) { let bs = -1; tries.filter(room).forEach(t => { const s = score(t); if (s > bs) { bs = s; at = t; } }); }
+        if (!at) at = tries[0];
+        at = [Math.min(W - 6 * d, Math.max(6 * d, at[0])), Math.min(H - 6 * d, Math.max(6 * d, at[1]))];
+        labPos.push({ s: it.s, x: at[0] / d, y: at[1] / d });
+        textAt(ctx, d, it.s, at[0], at[1], col, fsz / d);
+      }
+      if (kind === 'tag') {   // 「スタート」（三角形の 外がわ、点の 下か 上）
+        const q = X(it.p), up = q[1] < tc[1], y = q[1] + (up ? -1 : 1) * (small ? 17 : 30) * d;
+        ctx.font = 'bold ' + ((small ? 9 : 11) * d) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const w = ctx.measureText(it.s).width + 8 * d, x = Math.min(W - w / 2 - 2 * d, Math.max(w / 2 + 2 * d, q[0]));
+        const th = (small ? 6.5 : 8) * d; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - w / 2, y - th, w, 2 * th);
+        ctx.strokeStyle = col; ctx.lineWidth = 1.2 * d; ctx.strokeRect(x - w / 2, y - th, w, 2 * th);
+        ctx.fillStyle = col; ctx.fillText(it.s, x, y);
+      }
+    });
+  });
+  if (!small) window.__labPos = labPos;
+  ctx.lineCap = 'butt';
+}
+// 動き方（なぞる 矢印）：点から 点へ、図の 外がわへ ふくらむ 曲線。番号つき
+function drawPath(ctx, X, d, ps, col, cen, numbered, lw) {
+  for (let i = 0; i + 1 < ps.length; i++) {
+    if (!ps[i] || !ps[i + 1]) continue;
+    const a = X(ps[i]), b = X(ps[i + 1]), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    let nv = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l];
+    if ((m[0] - cen[0]) * nv[0] + (m[1] - cen[1]) * nv[1] < 0) nv = [-nv[0], -nv[1]];
+    const k = Math.min(Math.max(16 * d, 0.24 * l), 34 * d), c = [m[0] + nv[0] * k, m[1] + nv[1] * k];
+    // 曲線の おわりは 点の 手前で 止めて 矢じり
+    const tEnd = Math.max(0.6, 1 - 9 * d / l), B = t => [(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1]];
+    const tS = Math.min(0.4, 7 * d / l), e = B(tEnd), e0 = B(tEnd - 0.04);
+    ctx.strokeStyle = col; ctx.lineWidth = (lw || 2.6) * d; ctx.setLineDash([]); ctx.beginPath();
+    for (let t = tS, first = true; t <= tEnd + 1e-9; t += 0.02) { const q = B(Math.min(t, tEnd)); if (first) { ctx.moveTo(q[0], q[1]); first = false; } else ctx.lineTo(q[0], q[1]); }
+    ctx.stroke();
+    const ang = Math.atan2(e[1] - e0[1], e[0] - e0[0]), h = 8 * d;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(e[0], e[1]); ctx.lineTo(e[0] - h * Math.cos(ang - 0.45), e[1] - h * Math.sin(ang - 0.45)); ctx.lineTo(e[0] - h * Math.cos(ang + 0.45), e[1] - h * Math.sin(ang + 0.45)); ctx.closePath(); ctx.fill();
+    if (numbered) { const t = B(0.5); ctx.fillStyle = '#000a18'; ctx.beginPath(); ctx.arc(t[0], t[1], 7.5 * d, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.4 * d; ctx.stroke(); textAt(ctx, d, String(i + 1), t[0], t[1] + 0.5 * d, col, 11, true); }
+  }
+}
+function tapCen(q) { const v = q.tap.verts.map(n => q.fig.pts[n]); return [(v[0][0] + v[1][0] + v[2][0]) / 3, (v[0][1] + v[1][1] + v[2][1]) / 3]; }
+function draw() {
+  const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#000a18'; ctx.fillRect(0, 0, W, H);
+  const q = p();
+  if (!q) return;
+  const paths = [];
+  if (isPick(q) && !state.reveal && state.sel.length) paths.push({ segs: state.sel.map(id => q.fig.lines[id]), col: 'rgba(255,90,190,0.85)', w: 7 });   // えらんだ 線は 太い ピンク
+  if (isTap(q)) {
+    if (state.reveal && !state.lastOk) paths.push({ seq: ansSeq(q), col: COLS.ok, cen: tapCen(q) });
+    else if (state.seq.length) paths.push({ seq: [q.tap.start].concat(state.seq), col: state.reveal ? COLS.ok : COLS.pt, cen: tapCen(q) });
+  } else if (q.pathDone) paths.push({ seq: q.pathDone, col: 'rgba(77,255,136,0.42)', cen: q.pathCen, num: false, w: 1.8 });   // 連れ問の ①（タップ）の あとの ②：① の 順を 見せる
+  drawSpec(ctx, W, H, DPR, q.fig, state.reveal, false, paths);
+}
+// 約束の 画面の 小さい 図（ノートの 例：B から 1周）
+function drawDefFigs() {
+  const figs = [['defCvFig', { mode: 'cvTapB', fig: 'cv', an: [65, 60, 55], m: [3, 2, 4], st: 'B' }], ['defMnFig', { mode: 'mnTap', fig: 'mn', an: [65, 55, 60], ext: 'P', g: { R: [1, 2], Q: [1, 2], P: [4, 1] } }]];
+  figs.forEach(([id, q]) => {
+    const cv = $(id), d = 2; cv.width = 300; cv.height = 230;
+    const st = C.steps(q)[0];
+    drawSpec(cv.getContext('2d'), cv.width, cv.height, d, st.fig, false, true, [{ seq: st.tap.fwd, col: COLS.ok, cen: (() => { const v = st.tap.verts.map(n => st.fig.pts[n]); return [(v[0][0] + v[1][0] + v[2][0]) / 3, (v[0][1] + v[1][1] + v[2][1]) / 3]; })() }]);
+  });
+  $('defCv').innerHTML = eqHTML(['B', 'P', 'C', 'Q', 'A', 'R', 'B']);
+  $('defMn').innerHTML = eqHTML(['B', 'P', 'C', 'Q', 'A', 'R', 'B']);
+}
+
+// ---------- タップ ----------
+function nearestPt(e) {
+  const q = p(); if (!XF || !q) return null;
+  const r = canvas.getBoundingClientRect(), x = (e.clientX - r.left) * (canvas.width / r.width), y = (e.clientY - r.top) * (canvas.height / r.height);
+  let best = null, bd = 30 * XF.d;   // 30px いないの いちばん 近い 点
+  q.fig.taps.forEach(n => { const s = XF.X(q.fig.pts[n]), dd = Math.hypot(s[0] - x, s[1] - y); if (dd < bd) { bd = dd; best = n; } });
+  return best;
+}
+// 線の タップ：線分の いちばん 近い もの（点や 名前の 上でも えらべる）
+function nearestLine(e) {
+  const q = p(); if (!XF || !q || !q.fig.lines) return null;
+  const r = canvas.getBoundingClientRect(), x = (e.clientX - r.left) * (canvas.width / r.width), y = (e.clientY - r.top) * (canvas.height / r.height);
+  let best = null, bd = 24 * XF.d;
+  Object.keys(q.fig.lines).forEach(id => { const [a, b] = q.fig.lines[id].map(n => XF.X(q.fig.pts[n])), vx = b[0] - a[0], vy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * vx + (y - a[1]) * vy) / (vx * vx + vy * vy))), dd = Math.hypot(a[0] + vx * t - x, a[1] + vy * t - y); if (dd < bd) { bd = dd; best = id; } });
+  return best;
+}
+canvas.addEventListener('click', e => {
+  const q = p();
+  if (state.phase === 'play' && isPick(q)) {
+    const id = nearestLine(e); if (!id) return;
+    if (state.tut) { tutLine(id); return; }
+    const i = state.sel.indexOf(id);
+    if (i >= 0) state.sel.splice(i, 1); else if (state.sel.length < 4) state.sel.push(id); else { setMessage('4本 えらんだ。外す ときは もう一度 タップ'); return; }
+    draw(); renderControls(); setMessage(state.sel.length === 4 ? 'キツネの 顔に なった？「けってい」を おそう' : 'あと ' + (4 - state.sel.length) + '本（もう一度 タップで 外す）');
+    return;
+  }
+  if (state.phase !== 'play' || !isTap(q)) return;
+  const n = nearestPt(e);
+  if (!n) return;
+  if (state.tut) { tutTap(n); return; }
+  if (state.seq.length >= 6) { setMessage('6つ えらんだ。「けってい」か「↩ 1つ もどす」'); return; }
+  state.seq.push(n);
+  draw(); renderControls();
+  if (state.seq.length === 6) setMessage('1周 できた？「けってい」を おそう');
+});
+$('undoBtn').addEventListener('click', () => { if (state.phase !== 'play' || !isTap(p()) || state.tut) return; state.seq.pop(); draw(); renderControls(); });
+
+// ---------- 演出 ----------
+function flashScreen() { const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
+function monsterAnim(cls) { monsterEl.classList.remove('hit', 'miss-dmg'); void monsterEl.offsetWidth; monsterEl.classList.add(cls); }
+function showDamage(text, color) {
+  const el = document.createElement('div');
+  el.className = 'dmg-float'; el.textContent = text; el.style.color = color;
+  el.style.textShadow = '2px 2px 0 #000, 0 0 8px ' + color;
+  const r = monsterEl.getBoundingClientRect(), g = gameEl.getBoundingClientRect();
+  el.style.left = (r.left - g.left + r.width / 2 - 16) + 'px'; el.style.top = (r.top - g.top) + 'px';
+  gameEl.appendChild(el); setTimeout(() => el.remove(), 1000);
+}
+const HOME = ['すごい！', 'その とおり！', 'ナイス！', 'さすが！', 'みきわめた！', 'かんぺき！', 'いいね！'];
+function showMaru(text, gold) {   // 正解の 大きい まる
+  const el = document.createElement('div'); el.className = 'maru' + (gold ? ' gold' : '');
+  const s = document.createElement('span'); s.textContent = text || HOME[Math.floor(Math.random() * HOME.length)]; el.appendChild(s);
+  gameEl.appendChild(el); setTimeout(() => el.remove(), 1150);
+}
+function showLevelUp() { const el = document.createElement('div'); el.className = 'level-up'; el.textContent = 'LEVEL UP!'; gameEl.appendChild(el); setTimeout(() => el.remove(), 1800); }
+
+// ---------- 進行 ----------
+function hint() { const q = p(); return isPick(q) ? 'キツネの 顔の 線を 4本 タップ → けってい' : isTap(q) ? q.tap.start + ' から 点を 順に タップ → けってい' : 'えらんで けってい'; }
+function resetInput() { state.opt = -1; state.seq = []; state.sel = []; state.reveal = false; state.lastOk = false; }
+function newProblem() {
+  if (state.slotIdx >= state.slots.length) {   // ボスは HP が のこる かぎり 出す
+    const c = chap(), lv = c.final ? 1 + Math.floor(rng() * C.FINAL_HP) : c.lv;
+    state.slots.push({ lv, boss: true });
+  }
+  state.problem = C.makeProblem(state.slots[state.slotIdx], state.ctx, rng);
+  resetInput(); state.stepFail = null; state.hintUsed = false;
+  state.phase = 'play';
+  state.shownAt = performance.now();
+  renderEnemy(); renderProblem(); renderControls(); renderStatus(); draw();
+}
+function answer() { const q = p(); return isPick(q) ? { sel: state.sel.slice() } : isTap(q) ? { seq: state.seq.slice() } : { opt: state.opt }; }
+function submit() {
+  const q = p();
+  if (state.phase !== 'play' || !q) return;
+  if (state.tut) { tutDecide(); return; }
+  if (!ready()) { setMessage(hint()); return; }
+  const ans = answer(), ok = C.judge(q, ans), cls = ok ? null : C.classify(q, ans);
+  state.lastOk = ok;
+  if (q.steps && q.stepIdx < q.steps.length - 1) { stepMid(ok, cls); return; }   // 連れ問の とちゅう
+  if (q.steps && state.stepFail) { afterStepFail(ok); return; }   // とちゅうを まちがえた あとの さいご
+  const ev = C.record(state.ctx, q, ok, cls, Math.round(performance.now() - state.shownAt), state.hintUsed);
+  if (ok) onCorrect(ev); else onWrong(cls);
+}
+const mineText = q => (isPick(q) ? '\nじぶんの 線：' + state.sel.join('・') : isTap(q) ? '\nじぶんの 順：' + [q.tap.start].concat(state.seq).join(' → ') : '');
+// 連れ問：とちゅうが せいかいなら そのまま つぎへ（つぎ でも 問題文は のこす）。まちがえたら ライフを 1つ へらし、ただしい 答えを 見せて つぎへ
+function goStep(i, msg) {
+  const q = p(), prev = q.allSteps[q.stepIdx];
+  if (prev.tap) { q.pathDone = (state.lastOk ? [prev.tap.start].concat(state.seq) : ansSeq(q)); q.pathCen = tapCen(q); }
+  C.useStep(q, i); resetInput();
+  if (q.pathDone) q.fig = Object.assign({}, q.fig, { tapFig: true });
+  state.phase = 'play'; renderProblem(); renderControls(); draw(); setMessage(msg + '\n' + hint());
+}
+function stepMid(ok, cls) {
+  const q = p(), i = q.stepIdx;
+  state.reveal = true;
+  if (ok) {
+    state.phase = 'busy'; draw(); renderControls(); flashScreen(); showMaru(MARK[i] + ' せいかい！');
+    setMessage(MARK[i] + ' せいかい！　' + q.reason[0] + '\nつぎは ' + MARK[i + 1]);
+    setTimeout(() => goStep(i + 1, MARK[i] + ' せいかい！　つぎは ' + MARK[i + 1]), 900);
+    return;
+  }
+  const first = !state.stepFail;
+  if (first) { state.stepFail = cls; state.combo = 0; if (atBoss()) state.bossMiss = true; if (q.mab) state.mabMiss = true; state.lives -= 1; }
+  state.phase = 'next';
+  draw(); renderControls(); renderStatus();
+  if (first) { monsterAnim('miss-dmg'); showDamage('MISS', '#ff4444'); }
+  setMessage(['ざんねん！　' + C.describe(q, cls) + mineText(q), 'ただしい 答えは みどり', ...q.reason].join('\n'));
+  state.onNext = state.lives <= 0 ? () => { state.phase = 'idle'; $('gameOverScreen').classList.remove('hidden'); } : () => goStep(i + 1, MARK[i + 1] + ' は ただしい ' + MARK[i] + ' で 考えよう');
+}
+function afterStepFail(ok) {   // とちゅうを まちがえた 問題は さいごが できても たおせない（もう一度）
+  const q = p(), cls = ok ? state.stepFail : C.classify(q, answer());
+  C.record(state.ctx, q, false, state.stepFail, Math.round(performance.now() - state.shownAt), state.hintUsed);
+  state.phase = 'next'; state.reveal = true;
+  draw(); renderControls(); renderStatus();
+  const last = MARK[q.stepIdx];
+  setMessage((ok ? [last + ' は せいかい！', ...q.reason, 'でも とちゅうで まちがえたので、もう一度'] : ['ざんねん！　' + C.describe(q, cls) + mineText(q), ...q.reason]).join('\n'));
+  if (ok) { flashScreen(); showMaru(last + ' せいかい！'); }   // とちゅうを まちがえても さいごが できたら まるで ほめる（11-10 先生）
+  state.onNext = () => { newProblem(); setMessage('もういちど！\n' + hint()); };
+}
+// せいかい：みどりの 答えと 理由を 見せて「つぎへ」で すすむ
+function onCorrect(ev) {
+  const c = chap(), boss = atBoss(), e = enemyNow(), q = p();
+  state.combo = state.hintUsed ? 0 : (state.combo || 0) + 1;   // ヒントを 見た 問題は れんぞくに しない
+  const hit = C.damage(q, heroLV(), ev, rng, state.combo);
+  state.reveal = true; state.hp -= hit.d;
+  let hold = false, stay = false;
+  if (c.final && !loadProg().done && state.hp <= 0 && state.slotIdx < C.FINAL_HP - 1) { state.hp = 1; hold = true; }   // さいごの 章は 1周目だけ、すべての 章を 出しきるまで たおれない
+  if (!boss && q.target && q.target.lv && state.ctx.weak[q.lv]) { state.hp = Math.max(state.hp, 1); stay = true; }   // ザコは 苦手を こくふく するまで たおれない
+  flashScreen(); if (hit.crit) setTimeout(flashScreen, 180);
+  monsterAnim('hit'); showDamage('-' + hit.d, hit.crit ? '#ff9900' : '#ffff00');
+  showMaru(hit.crit ? 'かいしん！' : (state.combo || 0) >= 3 ? state.combo + ' れんぞく！' : '', hit.crit);
+  const lines = ['せいかい！　' + e.name + 'に　' + hit.d + ' の ダメージ！'];
+  if (hit.crit) lines.unshift('かいしんの いちげき！');
+  lines.push(...q.reason.filter(r => !r.startsWith('この 問題は')));
+  if (q.target && q.target.lv) lines.push('（にがての もんだいに せいかい ＋1）');
+  if (C.comboBonus(state.combo) > 0) lines.push('れんぞく せいかい ×' + state.combo + '（＋' + C.comboBonus(state.combo) + '）');
+  ev.mastered.forEach(t => lines.push('◎ ' + C.masterText(t) + ' こくふく！'));
+  if (ev.mastered.length) zkEvent({ type: 'master', id: q.form }, lines);
+  if (hold) lines.push(e.name + '「まだ たおれぬ！」');
+  if (stay) lines.push(e.name + '「にがてを こくふく するまで たおれぬ！」');
+  if (state.hp <= 0) zkEvent(boss ? { type: 'boss', id: bossId(), noMiss: !state.bossMiss } : q.mab ? { type: 'boss', id: q.form, noMiss: !state.mabMiss } : { type: 'kill', id: q.form }, lines);
+  state.phase = 'next';
+  draw(); renderControls(); renderStatus();
+  setMessage(lines.join('\n'));
+  state.onNext = () => {
+    if (!stay) state.slotIdx += 1;
+    if (state.hp > 0) { newProblem(); setMessage((stay ? 'もう 1もん！' : 'のこり HP ' + state.hp + '！') + '\n' + hint()); return; }
+    state.phase = 'busy'; renderControls();
+    monsterEl.classList.add('dying');
+    setMessage(e.name + 'を　たおした！');
+    renderStatus();
+    setTimeout(afterDefeat, 1100);
+  };
+}
+function afterDefeat() {
+  const c = chap(), L = heroLV();
+  monsterEl.classList.remove('dying');
+  if (c.final || state.slotIdx > nNormal()) { chapterClear(); return; }
+  state.lives = MAX_LIVES;
+  if (state.slotIdx === nNormal()) {   // 中ボス
+    state.hp = state.maxHp = C.midHP(L); state.bossMiss = false;
+    newProblem(); bossWarn(false);
+    setMessage('中ボス ' + c.boss.name + 'が あらわれた！\nここからは 問題集の ことばで 出るぞ！\n' + hint());
+    return;
+  }
+  state.hp = state.maxHp = C.zakoHP(L);
+  newProblem();
+  setMessage(appear() + '\n' + hint());
+}
+// ---------- ★の きろく（1つの 章を 続けて あそんで ★3。ぜんぶの 章が ★3 で さいごの 章が ひらく）----------
+const MAX_STAR = 3;
+const NORM = C.NORM_CH.map(c => c.ch);
+let memProg = null;
+function newProg() { return { stars: {}, gained: 0, done: false, v: C.DATA_V }; }
+function loadProg() {
+  try {
+    const raw = localStorage.getItem(PROG_KEY);
+    if (raw) { const pr = JSON.parse(raw); if (!(pr.v >= C.DATA_V)) { const m = C.migrateProg(pr); saveProg(m); return m; } return pr; }
+  } catch (e) { /* 読めなければ メモリの きろく */ }
+  return memProg || newProg();
+}
+function saveProg(pr) { pr.v = C.DATA_V; memProg = pr; try { localStorage.setItem(PROG_KEY, JSON.stringify(pr)); } catch (e) { /* 保存できなくても その回は 遊べる */ } }
+const heroLV = () => 1 + loadProg().gained;
+const attack = L => L + 1;
+const starsOf = (pr, ch) => Math.min(MAX_STAR, pr.stars[ch] || 0);
+const allStar = pr => NORM.every(k => starsOf(pr, k) >= MAX_STAR);
+const starTotal = pr => NORM.reduce((s, k) => s + starsOf(pr, k), 0);
+function starStr(n) { n = Math.min(n, MAX_STAR); return '<span class="stars">' + '★'.repeat(n) + '<span class="dim">' + '☆'.repeat(MAX_STAR - n) + '</span></span>'; }
+function showMap() {
+  const pr = loadProg(), L = heroLV(), zk = loadZk(), k = C.zukanCount(zk);
+  const items = C.CHAPTERS.map(c => {
+    if (c.final) {
+      if (!allStar(pr)) return '<button class="chap locked" disabled>🔒 さいごの 章<span class="unit">ぜんぶの 章を ★3 に すると ひらく（★ ' + starTotal(pr) + '/' + NORM.length * MAX_STAR + '）</span></button>';
+      return '<button class="chap" data-ch="' + c.ch + '">' + (pr.done ? '👑 ' : '▶ ') + c.title + '<span class="unit">ボス ' + c.boss.name + '（問題集の ことばで ' + C.FINAL_HP + 'つの 章）</span></button>';
+    }
+    const n = starsOf(pr, c.ch);
+    return '<button class="chap" data-ch="' + c.ch + '">' + (n >= MAX_STAR ? '✅ ' : '▶ ') + c.title + starStr(n) + '<span class="unit">ザコ 2体 → 中ボス ' + c.boss.name + '</span></button>';
+  }).join('') + (pr.done ? '<button class="chap reset" id="resetBtn2">🔄 さいしょから あそぶ</button>' : '');
+  $('mapLV').textContent = 'ゆうしゃ LV ' + L + '　こうげき力 ' + attack(L) + '　★ ' + starTotal(pr) + '/' + NORM.length * MAX_STAR;
+  $('zukanBtn').textContent = '📖 モンスターずかん ' + k.got + '/' + k.all;
+  $('mapComp').textContent = compText(zk); $('mapComp').classList.toggle('hidden', !compText(zk));
+  $('chapterList').innerHTML = items;
+  $('chapterList').querySelectorAll('.chap[data-ch]').forEach(b => b.addEventListener('click', () => { $('mapScreen').classList.add('hidden'); state.ctx = C.newContext(); startChapter(+b.dataset.ch); }));
+  if (pr.done) $('resetBtn2').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
+  $('mapScreen').classList.remove('hidden');
+  state.phase = 'idle';
+  renderControls();
+}
+function openDef(btn) { $('defClose').textContent = btn; $('defScreen').classList.remove('hidden'); $('defScreen').scrollTop = 0; drawDefFigs(); }
+function startChapter(ch) {
+  state.ch = ch;
+  const c = chap(), pr0 = loadProg(), n = starsOf(pr0, ch);
+  state.slots = C.makeSlots(ch, rng, { play: n < MAX_STAR ? n : undefined });   // ★0 → 1回め、★1 → 2回め、★2 → 3回め（まぼろし）。★3 の あとは どれか
+  state.nZako = state.slots.filter(s => !s.boss).length; state.mabMiss = false;
+  state.slotIdx = 0; state.combo = 0; state.bossMiss = false;
+  state.hp = state.maxHp = c.final ? C.finalHP(heroLV()) : C.zakoHP(heroLV());
+  state.lives = MAX_LIVES;
+  monsterEl.classList.remove('dying');
+  newProblem();
+  if (c.final) bossWarn(true);
+  if (c.intro && n === 0 && starTotal(pr0) === 0) openDef('▶ たたかう');   // はじめて の とき だけ 約束の 画面
+  setMessage((c.final ? c.boss.name + 'が あらわれた！\nここからは 問題集の ことばで 出るぞ！' : c.title + '\n' + appear()) + '\n' + hint());
+}
+function showZukan() {
+  const zk = loadZk(), k = C.zukanCount(zk);
+  let html = '', last = 0;
+  C.MONSTERS.slice().sort((a, b) => a.ch - b.ch || (a.boss ? 2 : a.mab ? 1 : 0) - (b.boss ? 2 : b.mab ? 1 : 0)).forEach(m => {
+    if (m.ch !== last) { html += '<div class="zch">' + C.CHAPTERS[m.ch - 1].title + '</div>'; last = m.ch; }
+    const v = zk[m.id] || 0, mz = m.mab ? ' mabz' : '';
+    if (!v) { html += '<div class="zi lock' + mz + '" data-id="' + m.id + '"><span class="mk">・</span><span class="sp">？</span><span class="nm">？？？' + (m.mab ? '（★3 の 回に あらわれる）' : '') + '</span><span class="tip">' + (m.mab ? 'まぼろしの モンスター' : m.boss ? 'まだ たおして いない ボス' : 'まだ たおして いない') + '</span></div>'; return; }
+    html += '<div class="zi ' + (v >= 2 ? 'master' : 'got') + mz + '" data-id="' + m.id + '"><span class="mk">' + (v >= 2 ? '◎' : '○') + '</span><span class="sp">' + m.sprite + '</span><span class="nm">' + (m.mab ? 'まぼろしの ' : '') + m.name + (m.boss ? '（ボス）' : '') + '</span><span class="tip">' + mathHTML(m.tip) + '</span></div>';
+  });
+  $('zukanList').innerHTML = html;
+  $('zukanCount').textContent = 'たおした ' + k.got + '/' + k.all + '　◎ ' + k.mas + '/' + k.all + '　まぼろし ' + k.mabGot + '/' + k.mabAll;
+  $('zukanComp').textContent = compText(zk); $('zukanComp').classList.toggle('hidden', !compText(zk));
+  $('mapScreen').classList.add('hidden'); $('zukanScreen').classList.remove('hidden'); $('zukanScreen').scrollTop = 0;
+}
+function chapterClear() {
+  gameEl.classList.remove('boss-mid', 'boss-final');
+  const c = chap(), pr = loadProg(), before = heroLV();
+  state.phase = 'idle';
+  const lines = [];
+  if (!c.final) {
+    const was = allStar(pr), n0 = starsOf(pr, c.ch);
+    if (n0 < MAX_STAR) {
+      pr.stars[c.ch] = n0 + 1; pr.gained += 1;
+      lines.push('★ ' + (n0 + 1) + '/' + MAX_STAR + ' ゲット！');
+      lines.push('LEVEL UP！　LV ' + before + ' → ' + (before + 1) + '　こうげき力 ' + attack(before) + ' → ' + attack(before + 1));
+      showLevelUp();
+    } else lines.push('（この 章は もう ★3。ほかの 章で ★を あつめよう）');
+    if (!was && allStar(pr)) lines.push('ぜんぶの 章が ★3！　さいごの 章が ひらいた！');
+    else if (!allStar(pr)) lines.push('★ ぜんぶで ' + starTotal(pr) + '/' + NORM.length * MAX_STAR);
+  } else {
+    pr.done = true;
+    lines.push('GAME CLEAR!　動き方を 身に つけし者よ、その ちえに えいこう あれ。');
+  }
+  const k = C.zukanCount(loadZk());
+  lines.push('📖 ずかん ' + k.got + '/' + k.all + (compText(loadZk()) ? '　' + compText(loadZk()) : ''));
+  saveProg(pr);
+  $('clearHero').textContent = c.boss.sprite;
+  $('clearTitle').textContent = c.boss.name + 'を たおした！';
+  $('clearText').textContent = lines.join('\n');
+  $('resetBtn1').classList.toggle('hidden', !c.final);
+  $('againBtn').classList.toggle('hidden', !!c.final);
+  $('againBtn').textContent = starsOf(pr, c.ch) < MAX_STAR ? '🔁 もう一回（★' + (starsOf(pr, c.ch) + 1) + ' へ）' : '🔁 もう一回';
+  $('clearScreen').classList.remove('hidden');
+}
+function resetAll() {
+  memProg = newProg(); memZk = { _v: C.DATA_V };
+  try { [PROG_KEY, ZK_KEY, TUT_KEY].forEach(k => localStorage.removeItem(k)); } catch (e) { /* 消せなくても その回は 最初から */ }
+  ['resetScreen', 'clearScreen', 'mapScreen'].forEach(id => $(id).classList.add('hidden'));
+  state.ctx = C.newContext(); state.phase = 'idle';
+  renderTitleComp();
+  $('titleScreen').classList.remove('hidden');
+}
+function onWrong(cls) {
+  const q = p();
+  state.combo = 0;
+  if (atBoss()) state.bossMiss = true;
+  if (q.mab) state.mabMiss = true;
+  state.lives -= 1; state.phase = 'next'; state.reveal = true;
+  draw(); renderControls(); renderStatus();
+  monsterAnim('miss-dmg'); showDamage('MISS', '#ff4444');
+  setMessage(['ざんねん！　' + C.describe(q, cls) + mineText(q), 'ただしい 答えは みどり', ...q.reason].join('\n'));
+  state.onNext = state.lives <= 0
+    ? () => { state.phase = 'idle'; $('gameOverScreen').classList.remove('hidden'); }
+    : () => { newProblem(); setMessage((p().target.lv ? 'にた もんだいで たしかめよう！' : 'もういちど！') + '\n' + hint()); };
+}
+function next() { if (state.phase !== 'next' || !state.onNext) return; const cb = state.onNext; state.onNext = null; cb(); }
+// ---------- ヒント（最初に やる 手）----------
+function showHint() {
+  const q = p();
+  if (!q || state.phase !== 'play' || !q.hint || state.tut) return;
+  if (!state.hintUsed) { state.hintUsed = true; if (atBoss()) state.bossMiss = true; if (q.mab) state.mabMiss = true; }   // ヒントを 見た 問題は れんぞく・◎ に ならない
+  setMessage('💡 ヒント\n' + q.hint + '\n※ ヒントを 見た 問題は れんぞく・◎ に ならない');
+  renderHint();
+}
+
+// ---------- チュートリアル（まちがえられない）----------
+const TUT = [
+  { prm: { mode: 'thPick', f: 'thPick', fig: 'cv', an: [65, 60, 55], m: [3, 2, 4], w: 'P' },
+    msg: '【れんしゅう 1/3】わかっている 比（水色の 数）も 求めたい 比 BP : PC（きいろ）も 全部 三角形の 辺の 上 → チェバの 定理。光って いる ボタンを おそう',
+    wrongOpt: '全部 辺の 上 → チェバ。光って いる ボタンを おしてね' },
+  { prm: { mode: 'cvTapB', f: 'cvTapB', fig: 'cv', an: [65, 60, 55], m: [3, 2, 4], st: 'B' },
+    msg: '【れんしゅう 2/3】B から スタート。指の ところを 順に タップ → 下に チェバの 式が 組み上がる',
+    wrongTap: 'となりの 点へ。指の ところを タップしてね' },
+  { prm: { mode: 'fxTri', f: 'fxTri', fig: 'cv', an: [65, 60, 55], m: [3, 2, 4], V: 'A', h: 1 },
+    msg: '【れんしゅう 3/3】数が のっている 線（AB・BC）と 求めたい AO : OP の 線（AP）、それに 直線 CR で キツネの 顔。指の 線を タップ',
+    wrongTap: 'わかっている 比の 数が のっている 線と 求めたい 比の 線だよ。指の 線を タップしてね' },
+];
+function tutDone() { try { return localStorage.getItem(TUT_KEY) === '1'; } catch (e) { return false; } }
+let pulseId = null;
+function pulse(id) {
+  pulseId = id;
+  ['decideBtn'].concat(optBtns.map((b, i) => 'opt' + i)).forEach(b => {
+    const el = b.startsWith('opt') ? optBtns[+b[3]] : $(b);
+    el.classList.toggle('pulse', b === id);
+  });
+  $('btnHint').classList.toggle('hidden', !id);
+  placeBtnHint();
+}
+function placeBtnHint() {
+  if (!pulseId) return;
+  const el = pulseId.startsWith('opt') ? optBtns[+pulseId[3]] : $(pulseId);
+  const b = el.getBoundingClientRect(), g = gameEl.getBoundingClientRect();
+  $('btnHint').style.left = (b.left - g.left + b.width * 0.84) + 'px';
+  $('btnHint').style.top = (b.top - g.top + 26) + 'px';
+}
+function placeTapHint() {   // チュートリアルの 指：つぎに タップする 点・線
+  const q = p(), h = $('tapHint');
+  if (!state.tut || state.tut.step !== 'tap' || !(isTap(q) || isPick(q)) || !XF) { h.classList.add('hidden'); return; }
+  const s = isPick(q) ? lineSpot(q.pick.ans.find(id => !state.sel.includes(id))) : XF.X(q.fig.pts[q.tap.fwd[state.seq.length + 1]]), cr = canvas.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  h.style.left = (cr.left - wr.left + s[0] / XF.d * (cr.width / (canvas.width / XF.d))) + 'px';
+  h.style.top = (cr.top - wr.top + s[1] / XF.d * (cr.height / (canvas.height / XF.d))) + 'px';
+  h.classList.remove('hidden');
+}
+function startTutorial() {
+  state.tut = { i: 0, step: 'opt' };
+  state.ch = 1; state.slotIdx = 0; state.hp = 1; state.lives = MAX_LIVES; state.nZako = 2;
+  $('skipTut').classList.remove('hidden');
+  tutProblem();
+}
+function tutProblem() {
+  const t = TUT[state.tut.i];
+  state.problem = C.build(JSON.parse(JSON.stringify(t.prm)), Math.random);
+  state.problem.target = { lv: false };
+  resetInput();
+  state.phase = 'play';
+  renderEnemy(); renderProblem(); renderControls(); renderStatus();
+  setMessage(t.msg);
+  if (isTap(p()) || isPick(p())) { state.tut.step = 'tap'; pulse(null); draw(); placeTapHint(); }
+  else { state.tut.step = 'opt'; pulse('opt' + p().options.findIndex(o => o.correct)); draw(); }
+}
+function tutOpt(i) {
+  const q = p();
+  if (state.tut.step !== 'opt') return;
+  if (!q.options[i].correct) { setMessage(TUT[state.tut.i].wrongOpt); return; }
+  state.opt = i; state.tut.step = 'decide';
+  renderControls(); setMessage('さいごに「けってい」を おそう'); pulse('decideBtn'); draw();
+}
+function tutTap(n) {
+  const q = p();
+  if (state.tut.step !== 'tap') return;
+  if (n !== q.tap.fwd[state.seq.length + 1]) { setMessage(TUT[state.tut.i].wrongTap); return; }
+  state.seq.push(n); draw(); renderControls();
+  if (state.seq.length === 6) { state.tut.step = 'decide'; $('tapHint').classList.add('hidden'); setMessage('1周して B に もどった！　さいごに「けってい」を おそう'); pulse('decideBtn'); }
+  else { setMessage(TUT[state.tut.i].msg.replace(/^【[^】]*】/, '') + '\n' + (state.seq.length % 2 ? 'つぎは 頂点' : 'つぎは 辺の 休憩ポイント')); placeTapHint(); }
+}
+function tutLine(id) {
+  const q = p();
+  if (state.tut.step !== 'tap') return;
+  if (!q.pick.ans.includes(id) || state.sel.includes(id)) { setMessage(TUT[state.tut.i].wrongTap); return; }
+  state.sel.push(id); draw(); renderControls();
+  if (state.sel.length === 4) { state.tut.step = 'decide'; $('tapHint').classList.add('hidden'); setMessage('キツネの 顔の 4本 そろった！　さいごに「けってい」を おそう'); pulse('decideBtn'); }
+  else { setMessage(TUT[state.tut.i].msg.replace(/^【[^】]*】/, '') + '\nあと ' + (4 - state.sel.length) + '本'); placeTapHint(); }
+}
+function tutDecide() {
+  if (state.tut.step !== 'decide') return;
+  const last = state.tut.i === TUT.length - 1;
+  pulse(null); $('tapHint').classList.add('hidden');
+  state.lastOk = true; state.reveal = true; state.phase = 'next';
+  renderControls(); draw(); flashScreen(); monsterAnim('hit'); showMaru();
+  setMessage('せいかい！　みどりが 答え。\n' + p().reason.join('\n') + '\n' + (last ? 'これで れんしゅうは おしまい' : 'つぎの れんしゅうへ'));
+  state.onNext = last ? () => { state.phase = 'idle'; $('tutDoneScreen').classList.remove('hidden'); } : () => { state.tut.i += 1; tutProblem(); };
+}
+function endTutorial() {
+  pulse(null); $('tapHint').classList.add('hidden');
+  state.tut = null;
+  $('skipTut').classList.add('hidden');
+  try { localStorage.setItem(TUT_KEY, '1'); } catch (e) { /* 保存できなくても 遊べる */ }
+  showMap();
+}
+
+// ---------- 操作 ----------
+optBtns.forEach((b, i) => b.addEventListener('click', () => {
+  if (state.phase !== 'play') return;
+  if (state.tut) { tutOpt(i); return; }
+  state.opt = i; renderControls();
+}));
+$('decideBtn').addEventListener('click', submit);
+$('hintBtn').addEventListener('click', showHint);
+$('againBtn').addEventListener('click', () => { $('clearScreen').classList.add('hidden'); state.ctx = C.newContext(); startChapter(state.ch); });
+$('ruleBtn').addEventListener('click', () => $('ruleScreen').classList.remove('hidden'));
+$('ruleClose').addEventListener('click', () => $('ruleScreen').classList.add('hidden'));
+$('ruleDef').addEventListener('click', () => { $('ruleScreen').classList.add('hidden'); openDef('▶ もどる'); });
+$('defClose').addEventListener('click', () => $('defScreen').classList.add('hidden'));
+$('nextBtn').addEventListener('click', next);
+$('startBtn').addEventListener('click', () => {
+  $('titleScreen').classList.add('hidden');
+  state.ctx = C.newContext();
+  if (tutDone()) showMap(); else startTutorial();
+});
+$('howBtn').addEventListener('click', () => { $('titleScreen').classList.add('hidden'); startTutorial(); });
+$('skipTut').addEventListener('click', () => { if (state.tut) endTutorial(); });
+$('goBtn').addEventListener('click', () => { $('tutDoneScreen').classList.add('hidden'); endTutorial(); });
+$('retryBtn').addEventListener('click', () => { $('gameOverScreen').classList.add('hidden'); startChapter(state.ch); });
+$('toMapBtn').addEventListener('click', () => { $('gameOverScreen').classList.add('hidden'); gameEl.classList.remove('boss-mid', 'boss-final'); showMap(); });
+$('clearBtn').addEventListener('click', () => { $('clearScreen').classList.add('hidden'); showMap(); });
+$('resetBtn1').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
+$('resetYes').addEventListener('click', resetAll);
+$('resetNo').addEventListener('click', () => $('resetScreen').classList.add('hidden'));
+$('zukanBtn').addEventListener('click', showZukan);
+$('zukanClose').addEventListener('click', () => { $('zukanScreen').classList.add('hidden'); showMap(); });
+$('mapBtn').addEventListener('click', () => { if (!state.tut && (state.phase === 'play' || state.phase === 'next')) $('quitScreen').classList.remove('hidden'); });
+$('quitNo').addEventListener('click', () => $('quitScreen').classList.add('hidden'));
+$('quitYes').addEventListener('click', () => {
+  $('quitScreen').classList.add('hidden');
+  gameEl.classList.remove('boss-mid', 'boss-final');
+  state.phase = 'idle'; state.onNext = null; renderMapBtn();
+  showMap();
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  if (e.repeat) return;
+  if (!$('resetScreen').classList.contains('hidden') || !$('mapScreen').classList.contains('hidden') || !$('quitScreen').classList.contains('hidden')) return;
+  const overlayBtn = { defScreen: 'defClose', ruleScreen: 'ruleClose', zukanScreen: 'zukanClose', titleScreen: 'startBtn', tutDoneScreen: 'goBtn', clearScreen: 'clearBtn', gameOverScreen: 'retryBtn' };
+  for (const id in overlayBtn) if (!$(id).classList.contains('hidden')) { $(overlayBtn[id]).click(); return; }
+  if (state.phase === 'next') next();
+  else if (state.phase === 'play' && e.key === 'Enter') submit();
+});
+
+new ResizeObserver(resizePlane).observe(wrap);
+renderTitleComp(); renderStatus(); renderControls();
+function lineSpot(id) {   // その 線の 上で、ほかの 線・点から いちばん はなれた ところ（canvas の 位置）
+  const q = p(), L = q.fig.lines, P = n => XF.X(q.fig.pts[n]), [a, b] = L[id].map(P);
+  const dseg = (pt, s0, s1) => { const vx = s1[0] - s0[0], vy = s1[1] - s0[1], t = Math.max(0, Math.min(1, ((pt[0] - s0[0]) * vx + (pt[1] - s0[1]) * vy) / (vx * vx + vy * vy))); return Math.hypot(s0[0] + vx * t - pt[0], s0[1] + vy * t - pt[1]); };
+  let best = null, bs = -1;
+  for (let t = 0.15; t <= 0.851; t += 0.05) { const pt = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; const s = Math.min(...Object.keys(L).filter(k => k !== id).map(k => dseg(pt, ...L[k].map(P))), ...q.fig.taps.map(n => Math.hypot(P(n)[0] - pt[0], P(n)[1] - pt[1]))); if (s > bs) { bs = s; best = pt; } }
+  return best;
+}
+window.__ceva = { lineScreen: id => { const s = lineSpot(id), r = canvas.getBoundingClientRect(); return [r.left + s[0] * r.width / canvas.width, r.top + s[1] * r.height / canvas.height]; }, state, ptScreen: n => { const q = p(); if (!XF || !q) return null; const s = XF.X(q.fig.pts[n]), r = canvas.getBoundingClientRect(); return [r.left + s[0] * r.width / canvas.width, r.top + s[1] * r.height / canvas.height]; } };   // テスト用：点の 画面の 位置
+})();
+</script>
+<script>
+// モンスターの 名前が 名前の らんに 入らない ときは 小さく（問題文に かからない。11-04 先生）
+(() => {
+  const el = document.getElementById('monsterName'); if (!el) return;
+  let busy = false;
+  const fit = () => {
+    if (busy) return; busy = true;
+    el.style.fontSize = ''; el.style.letterSpacing = '';
+    if (el.scrollWidth > el.clientWidth + 0.5) el.style.letterSpacing = '0';
+    let f = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth + 0.5 && f > 6) { f -= 0.5; el.style.fontSize = f + 'px'; }
+    busy = false;
+  };
+  new MutationObserver(fit).observe(el, { childList: true, characterData: true, subtree: true });
+  window.addEventListener('resize', fit); fit();
+})();
+</script>
+</body>
+</html>
