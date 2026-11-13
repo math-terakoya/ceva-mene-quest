@@ -363,6 +363,14 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 #planeWrap { min-height: 140px; }
 #controls.one .key.opt { min-height: 0; padding: 3px 4px; }
 @media (max-height: 640px) { #controls.one .key.opt { font-size: 17px; padding: 1px 4px; } }
+/* 数の のった 図は 220px より 小さく しない（数は 判断の 材料。入りきらない ときは 画面を スクロール。11-13 先生） */
+#game.numfig #planeWrap { min-height: 220px; }
+/* スクロールが ある ときは 下に「▼ したに つづく」（下まで いくと 消える。おすと 下へ） */
+#scrollHint { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); transform: translateX(-50%); z-index: 80;
+  background: #ffd84a; color: #000; border: 2px solid #000; border-radius: 16px; padding: 4px 14px; font-family: inherit; font-size: 13px; font-weight: bold;
+  white-space: nowrap; box-shadow: 0 0 10px rgba(255,216,74,0.7); cursor: pointer; animation: scrollDown 0.9s ease-in-out infinite; }
+#scrollHint.hidden { display: none; }
+@keyframes scrollDown { 50% { transform: translateX(-50%) translateY(4px); } }
 </style>
 </head>
 <body>
@@ -1377,6 +1385,8 @@ function setMessage(text) { $('msgText').innerHTML = mathHTML(text); $('message'
 // ---------- 図を 描く ----------
 let DPR = 1, XF = null;   // XF：図の 座標 → 画面（タップの 判定に 使う）
 function resizePlane() {
+  const q0 = p();
+  document.getElementById('game').classList.toggle('numfig', !!(q0 && q0.fig && q0.fig.ask.some(it => it.k === 'num')));   // 数の のった 図は 小さく しない（判断の 材料。11-13 先生）
   fitOpts();
   const w = Math.floor(Math.min(wrap.clientWidth - 12, (wrap.clientHeight - 8) / C.FIG.ASPECT));
   const W = Math.max(100, w), H = Math.round(W * C.FIG.ASPECT);
@@ -1987,6 +1997,26 @@ function lineSpot(id) {   // その 線の 上で、ほかの 線・点から �
   return best;
 }
 window.__ceva = { lineScreen: id => { const s = lineSpot(id), r = canvas.getBoundingClientRect(); return [r.left + s[0] * r.width / canvas.width, r.top + s[1] * r.height / canvas.height]; }, state, ptScreen: n => { const q = p(); if (!XF || !q) return null; const s = XF.X(q.fig.pts[n]), r = canvas.getBoundingClientRect(); return [r.left + s[0] * r.width / canvas.width, r.top + s[1] * r.height / canvas.height]; } };   // テスト用：点の 画面の 位置
+})();
+</script>
+<script>
+// スクロールが ある ときは 下に「▼ したに つづく」を 出す（11-13 先生：スクロールが ある ことが はっきり わかれば よい）
+(() => {
+  const g = document.getElementById('game'), h = document.createElement('button');
+  h.id = 'scrollHint'; h.className = 'hidden'; h.textContent = '▼ したに つづく';
+  document.body.appendChild(h);
+  let raf = 0;
+  const upd = () => {
+    raf = 0;
+    const over = [...document.querySelectorAll('.overlay')].some(o => !o.classList.contains('hidden'));
+    h.classList.toggle('hidden', over || g.scrollHeight - g.clientHeight - g.scrollTop <= 4);
+  };
+  const later = () => { if (!raf) raf = setTimeout(upd, 60); };
+  h.addEventListener('click', () => g.scrollTo({ top: g.scrollHeight, behavior: 'smooth' }));
+  g.addEventListener('scroll', later);
+  window.addEventListener('resize', later);
+  new MutationObserver(later).observe(g, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+  later();
 })();
 </script>
 <script>
