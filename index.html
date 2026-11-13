@@ -665,7 +665,7 @@ function figure(q, opt = {}) {
     dot: (p, c = 'w', r = 4) => L.push({ k: 'dot', p, c, r }),
     lab: (p, s, c = 'w') => L.push({ k: 'lab', p, s, c }),
     poly: (ps, c) => L.push({ k: 'poly', ps, c }),
-    num: (a, b, s, c = 'cy', away = null) => L.push({ k: 'num', a, b, s, c, away }),
+    num: (a, b, s, c = 'cy', away = null, on = false) => L.push({ k: 'num', a, b, s, c, away, on }),
     tag: (p, s, c = 'pt') => L.push({ k: 'tag', p, s, c }),
   });
   const a_ = mk(ask), z = mk(ans);
@@ -686,7 +686,8 @@ function figure(q, opt = {}) {
   if (W) { a_.seg(P[W[0]], P[W[1]], 'pt', 5); a_.seg(P[W[1]], P[W[2]], 'pt', 5); }
   (opt.givens || []).forEach(s => {   // 問題で 与えた 比の 数（三角形の 外がわに）
     const pos = stmtPos(tab, s), far = V3.find(v => !s.includes(v)), aw = far ? P[far] : null;
-    a_.num(P[s[0]], P[s[1]], String(Math.abs(pos[s[0]] - pos[s[1]])), 'cy', aw); a_.num(P[s[1]], P[s[2]], String(Math.abs(pos[s[1]] - pos[s[2]])), 'cy', aw);
+    const on = s[1] === 'O';   // 内部の 比（AO : OP）の 数は 線の 上（線を ぬいた 丸の 中）。横に 置くと ほかの 線と 線の あいだに 入って どの 線分の 数か 迷う
+    a_.num(P[s[0]], P[s[1]], String(Math.abs(pos[s[0]] - pos[s[1]])), 'cy', aw, on); a_.num(P[s[1]], P[s[2]], String(Math.abs(pos[s[1]] - pos[s[2]])), 'cy', aw, on);
   });
   if (opt.fox) {   // キツネの 顔（ぬった 三角形）
     const [V, h] = opt.fox, t = foxTri(V, h).split('').map(x => P[x]);
@@ -839,15 +840,22 @@ function ratioStep(q, tab, W, givens, parts, sols, num, figOpt) {   // 比を �
 const natW = x => [SIDE[x][0], x, SIDE[x][1]];
 const aqW = () => ['A', 'Q', 'C'];
 // 第1章：求めたい 比（P/Q/R は 辺の 比、A/B/C は 内部の 比）。gi は「わかっている 比に 内部の 比が 入る」
-const thWant = q => (q.gi ? natW(FOOT[q.V]) : sideW(q.w));
+// わかっている 比に 内部の 比（gi）：ふつうは 求めたい 比が 頂点の 線の 足の 辺（キツネの 1周では 外分の 分数）。
+// ws ＝ ★0（1回め）：求めたい 比を もう1つの 辺に（1周の 中で 内分の 分数）、その かわり 足の 辺の 比を わかっている 比に
+const giS = q => { const Y = NEXT[q.V], Z = NEXT[Y]; return (q.h || 1) === 1 ? FOOT[Z] : FOOT[Y]; };
+const giWant = q => natW(q.ws ? giS(q) : FOOT[q.V]);
+const giGivens = q => [[q.V, 'O', FOOT[q.V]], natW(q.ws ? FOOT[q.V] : giS(q))];
+const GI_FORMS = ['fxLine', 'mnFoxTap', 'rFox'];
+const isGi = q => GI_FORMS.includes(q.mode) || (q.mode === 'thFox' && !!q.gi);
+const thWant = q => (q.gi ? giWant(q) : sideW(q.w));
 function givensOf(q) {
   if (['thPick', 'thFox', 'mabTh'].includes(q.mode)) {
     if (q.fig === 'mn' || SIDE[q.w] && !q.gi) return ['P', 'Q', 'R'].filter(x => x !== q.w).map(natW);   // 全部 辺の 上
     const V = q.gi ? q.V : q.w, h = q.h || 1, Y = NEXT[V], Z = NEXT[Y], s = h === 1 ? FOOT[Z] : FOOT[Y];
-    return q.gi ? [[V, 'O', FOOT[V]], natW(s)] : [natW(s), natW(FOOT[V])];   // キツネの 顔の 辺の 比
+    return q.gi ? giGivens(q) : [natW(s), natW(FOOT[V])];   // キツネの 顔の 辺の 比
   }
   if (q.mode === 'rCeva' || q.mode === 'mabCv') return ['P', 'Q', 'R'].filter(x => x !== q.w).map(x => (x === 'Q' && q.aq ? aqW() : natW(x)));
-  if (['fxLine', 'mnFoxTap', 'rFox'].includes(q.mode)) { const V = q.V, Y = NEXT[V], Z = NEXT[Y]; return [[V, 'O', FOOT[V]], natW(q.h === 1 ? FOOT[Z] : FOOT[Y])]; }   // わかっている 比に 内部の 比
+  if (GI_FORMS.includes(q.mode)) return giGivens(q);   // わかっている 比に 内部の 比
   if (['rMene', 'mabAr', 'fxTri', 'mabFx', 'mnTap', 'mabMn'].includes(q.mode)) {
     const V = q.V, Y = NEXT[V], Z = NEXT[Y], s = q.h === 1 ? FOOT[Z] : FOOT[Y];
     return [s === 'Q' && q.aq ? aqW() : natW(s), natW(FOOT[V])];
@@ -869,13 +877,13 @@ function steps(q) {
     case 'cvTapB': case 'cvTapX': return [tapStep(q, cevaCyc(q.st), 'cv')];
     case 'mabCv': { const g = givensOf(q), W = sideW(q.w), cyc = cevaCyc('B'); return [tapStep(q, cyc, 'cv'), eqStep(q, tab, cyc, g, W, '②')]; }
     case 'fxTri': case 'fxLine': case 'mabFx': {
-      const g = givensOf(q), W = q.mode === 'fxLine' ? natW(FOOT[q.V]) : [q.V, 'O', FOOT[q.V]], s1 = pickStep(q, tab, W, g, m === 'mabFx' ? '①' : '');
+      const g = givensOf(q), W = q.mode === 'fxLine' ? giWant(q) : [q.V, 'O', FOOT[q.V]], s1 = pickStep(q, tab, W, g, m === 'mabFx' ? '①' : '');
       return m === 'mabFx' ? [s1, eqStep(q, tab, foxCyc(q.V, q.h), g, W, '②')] : [s1];
     }
     case 'mnTap': case 'mnFoxTap': case 'mabMn': case 'rMene': case 'rFox': {
       if (q.fig === 'mn') return [tapStep(q, mnCyc(q), 'mn')];   // 約束の 画面の 図（三角形と 直線 ℓ）だけ
       // メネラウスの 流れ：① キツネの 顔の 4本 → ② 動き方を タップ →（③ 数を 入れた 式 ／ ③ 比）
-      const g = givensOf(q), gi = ['mnFoxTap', 'rFox'].includes(m), W = gi ? natW(FOOT[q.V]) : [q.V, 'O', FOOT[q.V]], cyc = foxCyc(q.V, q.h), fx = [q.V, q.h];
+      const g = givensOf(q), gi = ['mnFoxTap', 'rFox'].includes(m), W = gi ? giWant(q) : [q.V, 'O', FOOT[q.V]], cyc = foxCyc(q.V, q.h), fx = [q.V, q.h];
       const s1 = pickStep(q, tab, W, g, '①');
       const s2 = tapStep(q, cyc, 'fox', { fox: fx, givens: g, want: W, tab, num: '②', figOpt: { fox: fx, foxAsk: true, foxShade: 'shg', want: W, givens: g } });
       if (m === 'mnTap' || m === 'mnFoxTap') return [s1, s2];
@@ -1000,6 +1008,30 @@ const GEN = {
   mabAr: rng => ({ fig: 'cv', an: pick(rng, SHAPES), m: pick(rng, AREA_M), V: pick(rng, V3), h: pick(rng, [1, 2]), aq: rng() < 0.3 }),
 };
 const foxOfPrm = q => (q.fig !== 'cv' ? null : q.V ? [q.V, q.h || 1] : ['thPick', 'thFox', 'mabTh'].includes(q.mode) && V3.includes(q.w) ? [q.w, q.h || 1] : null);   // その 問題で 見せる キツネの 顔
+// 問題の 数を 置く すきま（画面と 同じ やり方を 図の 座標で。1px ≒ 1/130 ＝ 320px の 画面）。どこに 置いても 線・点に 近い 図は 出さない（どの 線分の 数か 迷う）
+// 辺の 数は 線の 横（12・15px）で、ほかの 線・点から NUM_NEED いじょう。内部の 比の 数は 線の 上で、ほかの 線・点から NUM_ON いじょう
+const NUM_PX = 1 / 130, NUM_NEED = 12, NUM_ON = 11, NUM_T = [0.5, 0.42, 0.58];
+function numRoom(q, g) {
+  const sp = figure(q, { givens: g }), segs = sp.ask.filter(o => o.k === 'seg'), dots = sp.ask.filter(o => o.k === 'dot').map(o => o.p);
+  const tc = [(sp.tri[0][0] + sp.tri[1][0] + sp.tri[2][0]) / 3, (sp.tri[0][1] + sp.tri[1][1] + sp.tri[2][1]) / 3];
+  const dSeg = (p_, u, v) => { const w = sub(v, u), L2 = w[0] * w[0] + w[1] * w[1] || 1, t = Math.max(0, Math.min(1, ((p_[0] - u[0]) * w[0] + (p_[1] - u[1]) * w[1]) / L2)); return Math.hypot(u[0] + w[0] * t - p_[0], u[1] + w[1] * t - p_[1]); };
+  let worst = 99;   // いちばん きつい 数の「すきま − いる すきま」（px）
+  sp.ask.filter(o => o.k === 'num').forEach(it => {
+    const a = it.a, b = it.b, l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, cr = p_ => ((b[0] - a[0]) * (p_[1] - a[1]) - (b[1] - a[1]) * (p_[0] - a[0])) / l;
+    let nv = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l];
+    const m = lerp(a, b, 0.5), aw = it.away || tc;
+    if ((m[0] - aw[0]) * nv[0] + (m[1] - aw[1]) * nv[1] < 0) nv = [-nv[0], -nv[1]];
+    const others = segs.filter(o => !(Math.abs(cr(o.a)) < 1e-6 && Math.abs(cr(o.b)) < 1e-6));
+    let best = -99;
+    for (const off of it.on ? [0] : [12, 15]) for (const sg of it.on ? [1] : [1, -1]) for (const t of NUM_T) {
+      const p_ = add(lerp(a, b, t), mul(nv, sg * off * NUM_PX));
+      const v = Math.min(...others.map(o => dSeg(p_, o.a, o.b)), ...dots.map(o => Math.hypot(o[0] - p_[0], o[1] - p_[1]) - 3 * NUM_PX)) / NUM_PX;
+      best = Math.max(best, v);
+    }
+    worst = Math.min(worst, best - (it.on ? NUM_ON : NUM_NEED));
+  });
+  return worst;
+}
 const MIN_D = 0.14, FOX_MIN = 0.3;   // 点どうしの きょり・キツネの 三角形の いちばん 短い 辺（BC ＝ 1）。かたまって 見えない 図に しない
 // 数が 大きすぎない・選択肢が そろう（値・意味が かぶらない）問題だけ
 function usable(q) {
@@ -1011,10 +1043,12 @@ function usable(q) {
   for (let i = 0; i < ks.length; i++) for (let j = 0; j < i; j++) if (Math.hypot(P[ks[i]][0] - P[ks[j]][0], P[ks[i]][1] - P[ks[j]][1]) < MIN_D) return false;
   const fx = foxOfPrm(q);
   if (fx) { const t = foxTri(...fx).split('').map(x => P[x]); for (let i = 0; i < 3; i++) if (Math.hypot(t[i][0] - t[(i + 1) % 3][0], t[i][1] - t[(i + 1) % 3][1]) < FOX_MIN) return false; }
+  const g = givensOf(q);
+  if (g.length && numRoom(q, g) < 0) return false;
   return true;
 }
-function genPrm(form, rng) {
-  for (let i = 0; i < 200; i++) { const q = Object.assign({ mode: form, f: form }, GEN[form](rng)); if (usable(q)) return q; }
+function genPrm(form, rng, opt = {}) {   // opt.inner：求めたい 比が 外分の 分数に ならない（★0 の 回）
+  for (let i = 0; i < 200; i++) { const q = Object.assign({ mode: form, f: form }, GEN[form](rng)); if (opt.inner && isGi(q)) q.ws = true; if (usable(q)) return q; }
   throw new Error('作れない ' + form);
 }
 const TWO = MAB_FORMS.concat(['rCeva', 'rMene', 'rFox']);
@@ -1118,7 +1152,7 @@ function makeProblem(slot, ctx, rng) {
   const C = CHAPTERS[slot.lv - 1], forms = slot.form ? [slot.form] : slot.boss && C.bossForms ? C.bossForms : C.forms;
   const fresh = (prm, again) => !ctx.recent.includes(JSON.stringify(prm)) && !ctx.recentTri.includes(shapeKey(prm)) && !ctx.recentNum.includes(numKey(prm))
     && (again || !(ansKey(prm) && (ctx.lastAns[ansGrp(prm)] || []).length >= 2 && ctx.lastAns[ansGrp(prm)].slice(-2).every(k => k === ansKey(prm))));   // 同じ 形・同じ 数の 図を 続けない。同じ 答えは 3回 続けない
-  const gen = () => genPrm(pick(rng, forms), rng);
+  const gen = () => genPrm(pick(rng, forms), rng, { inner: slot.play === 0 });   // ★0（1回め）は 求めたい ところが 外分に ならない
   let prm = null, target = false;
   if (w) for (let i = 0; i < 200 && !prm; i++) { const c = gen(); if (likeOK(c, w.like) && fresh(c, true)) { prm = c; target = true; } }
   for (let i = 0; i < 200 && !prm; i++) { const c = gen(); if (fresh(c)) prm = c; }
@@ -1151,7 +1185,7 @@ G.CevaCore = {
   FIG, V3, NEXT, SIDE, FOOT, SHAPES, MASS, MN, AREA_M, NOTE_M, DATA_V, migrateProg, migrateZk, triPts, model, figure, fwd, bwd, cevaCyc, foxCyc, mnCyc, foxTri, foxLine,
   steps, CHAPTERS, NORM_CH, FORM_LV, MONSTERS, MAB_FORMS, TWO, monsterOf, zukanAfter, zukanCount, GEN, genPrm, build, useStep, judge, classify, tapTypes,
   describe, masterText, likeOK, TYPE_TEXT, MASTER_TEXT, MID_HP, FINAL_HP, zakoHP, midHP, finalHP, CRIT, comboBonus, damage, makeSlots, PLAYS,
-  newContext, makeProblem, record, mulberry32, shapeKey, numKey, ansKey, ansGrp, gcd, MIN_D, FOX_MIN, usable, LINES, foxLines, foxOfPrm, pickTypes,
+  newContext, makeProblem, record, isGi, giWant, numRoom, givensOf, NUM_NEED, NUM_ON, NUM_T, NUM_PX, mulberry32, shapeKey, numKey, ansKey, ansGrp, gcd, MIN_D, FOX_MIN, usable, LINES, foxLines, foxOfPrm, pickTypes,
 };
 })(typeof window !== 'undefined' ? window : this);
 </script>
@@ -1383,7 +1417,7 @@ function drawSpec(ctx, W, H, d, spec, showAns, small, paths) {
   const tri = spec.tri.map(X), tc = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3];
   const line = (a, b, col, w, dash) => { ctx.strokeStyle = col; ctx.lineWidth = w * d * fs; ctx.setLineDash(dash ? [5 * d, 4 * d] : []); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]); };
   ctx.lineCap = 'round';
-  const labPos = [];
+  const labPos = [], numPos = [];
   ORDER.forEach(kind => {
     if (kind === 'path') { (paths || []).filter(pa => pa.segs).forEach(pa => pa.segs.forEach(([a, b]) => line(X(spec.pts[a]), X(spec.pts[b]), pa.col, pa.w || 7, false))); (paths || []).filter(pa => !pa.segs).forEach(pa => drawPath(ctx, X, d * fs, pa.seq.map(n => spec.pts[n]), pa.col, pa.cen ? X(pa.cen) : tc, pa.num !== false, pa.w)); return; }
     items.filter(it => it.k === kind).forEach(it => {
@@ -1397,7 +1431,23 @@ function drawSpec(ctx, W, H, d, spec, showAns, small, paths) {
         const aw = it.away ? X(it.away) : tc;
         if ((m[0] - aw[0]) * nv[0] + (m[1] - aw[1]) * nv[1] < 0) nv = [-nv[0], -nv[1]];
         if (it.c === 'ok') nv = [-nv[0], -nv[1]];   // 答えの 数は 内がわ（問題の 数と 重ならない）
-        textAt(ctx, d, it.s, m[0] + nv[0] * 12 * d * fs, m[1] + nv[1] * 12 * d * fs, col, 14 * fs);
+        // ほかの 線・点・数から はなれた ところ（せまい すきまに 入れない。どの 線分の 数か 迷わない）。まず いつもの 向き、だめなら 反対・少し ずらす
+        const col0 = (o) => { const cr = (q) => (b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0]); return Math.abs(cr(X(o.a))) < l * 0.5 && Math.abs(cr(X(o.b))) < l * 0.5; };
+        const segs = items.filter(o => o.k === 'seg' && !col0(o)).map(o => [X(o.a), X(o.b)]);
+        const dots = items.filter(o => o.k === 'dot').map(o => X(o.p));
+        const dSeg = (q, u, v) => { const w = [v[0] - u[0], v[1] - u[1]], L2 = w[0] * w[0] + w[1] * w[1] || 1, t = Math.max(0, Math.min(1, ((q[0] - u[0]) * w[0] + (q[1] - u[1]) * w[1]) / L2)); return Math.hypot(u[0] + w[0] * t - q[0], u[1] + w[1] * t - q[1]); };
+        const sc = q => Math.min(...segs.map(([u, v]) => dSeg(q, u, v)), ...dots.map(o => Math.hypot(o[0] - q[0], o[1] - q[1]) - 3 * d), ...numPos.map(o => Math.hypot(o[0] - q[0], o[1] - q[1]) - 6 * d), 99 * d);
+        const tries = [];
+        for (const off of it.on ? [0] : [12, 15]) for (const sg of it.on ? [1] : [1, -1]) for (const t of C.NUM_T) {
+          if (it.c === 'ok' && sg < 0) continue;   // 答えの 数は 内がわの まま
+          tries.push([a[0] + (b[0] - a[0]) * t + sg * nv[0] * off * d * fs, a[1] + (b[1] - a[1]) * t + sg * nv[1] * off * d * fs]);
+        }
+        const need = (it.on ? C.NUM_ON : C.NUM_NEED) * d * fs;   // しくみと おなじ
+        let at = tries.find(q => sc(q) >= need);
+        if (!at) { let bs = -1e9; tries.forEach(q => { const v = sc(q); if (v > bs) { bs = v; at = q; } }); }
+        numPos.push(at);
+        if (it.on) { ctx.fillStyle = '#000a18'; ctx.beginPath(); ctx.arc(at[0], at[1], 8.5 * d * fs, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.2 * d * fs; ctx.stroke(); }   // 線を ぬいた 丸
+        textAt(ctx, d, it.s, at[0], at[1], col, 14 * fs);
       }
       if (kind === 'lab') {   // 文字は 線が ない いちばん 広い すきまの 向きに
         const dirs = [];
@@ -1417,7 +1467,7 @@ function drawSpec(ctx, W, H, d, spec, showAns, small, paths) {
         const dots = items.filter(o => o.k === 'dot').map(o => X(o.p)).filter(o => Math.hypot(o[0] - q[0], o[1] - q[1]) > 1);
         const fsz = (small ? 11 : W / d < 230 ? 13 : 16) * d, rr0 = (small ? 10 : W / d < 230 ? 12 : 14) * d;
         const room = at => Math.min(at[0] - 6 * d, at[1] - 6 * d, W - 6 * d - at[0], H - 6 * d - at[1]) >= 0;
-        const score = at => Math.min(...labPos.map(o => Math.hypot(o.x * d - at[0], o.y * d - at[1]) / (1.05 * fsz)), ...dots.map(o => Math.hypot(o[0] - at[0], o[1] - at[1]) / (0.75 * fsz)), 9);
+        const score = at => Math.min(...labPos.map(o => Math.hypot(o.x * d - at[0], o.y * d - at[1]) / (1.05 * fsz)), ...dots.map(o => Math.hypot(o[0] - at[0], o[1] - at[1]) / (0.75 * fsz)), ...numPos.map(o => Math.hypot(o[0] - at[0], o[1] - at[1]) / (0.95 * fsz)), 9);   // 数とも 重ならない
         const tries = [];
         for (const rr of [rr0, rr0 * 1.35, rr0 * 1.7, rr0 * 2.1]) { cands.forEach(([, a]) => tries.push([q[0] + Math.cos(a) * rr, q[1] + Math.sin(a) * rr])); for (let k = 0; k < 24; k++) tries.push([q[0] + Math.cos(k * Math.PI / 12) * rr, q[1] + Math.sin(k * Math.PI / 12) * rr]); }
         let at = tries.find(t => room(t) && score(t) >= 1);   // すきまの まんなか → まわり 16方向 → 少し 遠く
