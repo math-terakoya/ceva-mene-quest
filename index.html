@@ -370,6 +370,10 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
   background: #ffd84a; color: #000; border: 2px solid #000; border-radius: 16px; padding: 4px 14px; font-family: inherit; font-size: 13px; font-weight: bold;
   white-space: nowrap; box-shadow: 0 0 10px rgba(255,216,74,0.7); cursor: pointer; animation: scrollDown 0.9s ease-in-out infinite; }
 #scrollHint.hidden { display: none; }
+/* まちがえた ときは メッセージの 窓と 図の 枠が 赤く なり、一度 ゆれる（大きい ✕ は 出さない。11-14 先生） */
+#game.missed #message { border-color: #ff4646; box-shadow: 0 0 0 3px #000, 0 0 0 5px #ff4646; animation: missShake 0.4s; }
+#game.missed #plane { border-color: #ff4646; box-shadow: 0 0 8px rgba(255,70,70,0.6); }
+@keyframes missShake { 20% { transform: translateX(-5px); } 45% { transform: translateX(5px); } 70% { transform: translateX(-3px); } 100% { transform: none; } }
 @keyframes scrollDown { 50% { transform: translateX(-50%) translateY(4px); } }
 </style>
 </head>
@@ -1429,7 +1433,13 @@ function drawSpec(ctx, W, H, d, spec, showAns, small, paths) {
   ctx.lineCap = 'round';
   const labPos = [], numPos = [];
   ORDER.forEach(kind => {
-    if (kind === 'path') { (paths || []).filter(pa => pa.segs).forEach(pa => pa.segs.forEach(([a, b]) => line(X(spec.pts[a]), X(spec.pts[b]), pa.col, pa.w || 7, false))); (paths || []).filter(pa => !pa.segs).forEach(pa => drawPath(ctx, X, d * fs, pa.seq.map(n => spec.pts[n]), pa.col, pa.cen ? X(pa.cen) : tc, pa.num !== false, pa.w)); return; }
+    if (kind === 'path') { (paths || []).filter(pa => pa.segs).forEach(pa => pa.segs.forEach(([a, b]) => line(X(spec.pts[a]), X(spec.pts[b]), pa.col, pa.w || 7, false))); (paths || []).filter(pa => !pa.segs).forEach(pa => drawPath(ctx, X, d * fs, pa.seq.map(n => spec.pts[n]), pa.col, pa.cen ? X(pa.cen) : tc, pa.num !== false, pa.w, pa.n0 || 0));
+      (paths || []).filter(pa => pa.cross && spec.pts[pa.cross]).forEach(pa => {   // まちがえた 点に 赤い ✕
+        const q = X(spec.pts[pa.cross]), r = 7 * d * fs;
+        ctx.lineCap = 'round'; ctx.strokeStyle = '#000a18'; ctx.lineWidth = 6 * d * fs;
+        for (const k of [1, 2]) { ctx.beginPath(); ctx.moveTo(q[0] - r, q[1] - r); ctx.lineTo(q[0] + r, q[1] + r); ctx.moveTo(q[0] + r, q[1] - r); ctx.lineTo(q[0] - r, q[1] + r); ctx.stroke(); ctx.strokeStyle = '#ff4646'; ctx.lineWidth = 3 * d * fs; }
+      });
+      return; }
     items.filter(it => it.k === kind).forEach(it => {
       const col = COLS[it.c] || it.c;
       if (kind === 'poly') { ctx.fillStyle = col; ctx.beginPath(); it.ps.map(X).forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); ctx.fill(); }
@@ -1501,7 +1511,7 @@ function drawSpec(ctx, W, H, d, spec, showAns, small, paths) {
   ctx.lineCap = 'butt';
 }
 // 動き方（なぞる 矢印）：点から 点へ、図の 外がわへ ふくらむ 曲線。番号つき
-function drawPath(ctx, X, d, ps, col, cen, numbered, lw) {
+function drawPath(ctx, X, d, ps, col, cen, numbered, lw, n0 = 0) {   // n0：番号の はじめ（とちゅうから 描く とき）
   for (let i = 0; i + 1 < ps.length; i++) {
     if (!ps[i] || !ps[i + 1]) continue;
     const a = X(ps[i]), b = X(ps[i + 1]), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
@@ -1516,7 +1526,7 @@ function drawPath(ctx, X, d, ps, col, cen, numbered, lw) {
     ctx.stroke();
     const ang = Math.atan2(e[1] - e0[1], e[0] - e0[0]), h = 8 * d;
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(e[0], e[1]); ctx.lineTo(e[0] - h * Math.cos(ang - 0.45), e[1] - h * Math.sin(ang - 0.45)); ctx.lineTo(e[0] - h * Math.cos(ang + 0.45), e[1] - h * Math.sin(ang + 0.45)); ctx.closePath(); ctx.fill();
-    if (numbered) { const t = B(0.5); ctx.fillStyle = '#000a18'; ctx.beginPath(); ctx.arc(t[0], t[1], 7.5 * d, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.4 * d; ctx.stroke(); textAt(ctx, d, String(i + 1), t[0], t[1] + 0.5 * d, col, 11, true); }
+    if (numbered) { const t = B(0.5); ctx.fillStyle = '#000a18'; ctx.beginPath(); ctx.arc(t[0], t[1], 7.5 * d, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.4 * d; ctx.stroke(); textAt(ctx, d, String(n0 + i + 1), t[0], t[1] + 0.5 * d, col, 11, true); }
   }
 }
 function tapCen(q) { const v = q.tap.verts.map(n => q.fig.pts[n]); return [(v[0][0] + v[1][0] + v[2][0]) / 3, (v[0][1] + v[1][1] + v[2][1]) / 3]; }
@@ -1528,7 +1538,12 @@ function draw() {
   const paths = [];
   if (isPick(q) && !state.reveal && state.sel.length) paths.push({ segs: state.sel.map(id => q.fig.lines[id]), col: 'rgba(255,90,190,0.85)', w: 7 });   // えらんだ 線は 太い ピンク
   if (isTap(q)) {
-    if (state.reveal && !state.lastOk) paths.push({ seq: ansSeq(q), col: COLS.ok, cen: tapCen(q) });
+    if (state.reveal && !state.lastOk) {   // 合って いた ところまで みどり、まちがえた 1本は 赤 と ✕、正しい 順は うすい みどり（11-14 先生「どこまで 合って いるか 一目で」）
+      const ans = ansSeq(q), mine = [q.tap.start].concat(state.seq), k = mine.findIndex((x, i) => x !== ans[i]), cen = tapCen(q);
+      paths.push({ seq: ans, col: 'rgba(77,255,136,0.45)', cen, num: false, w: 1.8 });
+      if (k > 1) paths.push({ seq: mine.slice(0, k), col: COLS.ok, cen });
+      if (k > 0) paths.push({ seq: mine.slice(k - 1, k + 1), col: '#ff4646', cen, n0: k - 1, cross: mine[k] });
+    }
     else if (state.seq.length) paths.push({ seq: [q.tap.start].concat(state.seq), col: state.reveal ? COLS.ok : COLS.pt, cen: tapCen(q) });
   } else if (q.pathDone) paths.push({ seq: q.pathDone, col: 'rgba(77,255,136,0.42)', cen: q.pathCen, num: false, w: 1.8 });   // 連れ問の ①（タップ）の あとの ②：① の 順を 見せる
   drawSpec(ctx, W, H, DPR, q.fig, state.reveal, false, paths);
@@ -1603,7 +1618,8 @@ function showLevelUp() { const el = document.createElement('div'); el.className 
 
 // ---------- 進行 ----------
 function hint() { const q = p(); return isPick(q) ? 'キツネの 顔の 線を 4本 タップ → けってい' : isTap(q) ? q.tap.start + ' から 点を 順に タップ → けってい' : 'えらんで けってい'; }
-function resetInput() { state.opt = -1; state.seq = []; state.sel = []; state.reveal = false; state.lastOk = false; }
+function resetInput() { state.opt = -1; state.seq = []; state.sel = []; state.reveal = false; state.lastOk = false; missed(false); }
+function missed(on) { $('game').classList.toggle('missed', on); }   // まちがえた ときの 赤い 枠
 function newProblem() {
   if (state.slotIdx >= state.slots.length) {   // ボスは HP が のこる かぎり 出す
     const c = chap(), lv = c.final ? 1 + Math.floor(rng() * C.FINAL_HP) : c.lv;
@@ -1648,7 +1664,7 @@ function stepMid(ok, cls) {
   }
   const first = !state.stepFail;
   if (first) { state.stepFail = cls; state.combo = 0; if (atBoss()) state.bossMiss = true; if (q.mab) state.mabMiss = true; state.lives -= 1; }
-  state.phase = 'next';
+  state.phase = 'next'; missed(true);
   draw(); renderControls(); renderStatus();
   if (first) { monsterAnim('miss-dmg'); showDamage('MISS', '#ff4444'); }
   setMessage(['ざんねん！　' + C.describe(q, cls) + mineText(q), 'ただしい 答えは みどり', ...q.reason].join('\n'));
@@ -1661,7 +1677,7 @@ function afterStepFail(ok) {   // とちゅうを まちがえた 問題は さ�
   draw(); renderControls(); renderStatus();
   const last = MARK[q.stepIdx];
   setMessage((ok ? [last + ' は せいかい！', ...q.reason, 'でも とちゅうで まちがえたので、もう一度'] : ['ざんねん！　' + C.describe(q, cls) + mineText(q), ...q.reason]).join('\n'));
-  if (ok) { flashScreen(); showMaru(last + ' せいかい！'); }   // とちゅうを まちがえても さいごが できたら まるで ほめる（11-10 先生）
+  if (ok) { flashScreen(); showMaru(last + ' せいかい！'); } else missed(true);   // とちゅうを まちがえても さいごが できたら まるで ほめる（11-10 先生）
   state.onNext = () => { newProblem(); setMessage('もういちど！\n' + hint()); };
 }
 // せいかい：みどりの 答えと 理由を 見せて「つぎへ」で すすむ
@@ -1825,7 +1841,7 @@ function onWrong(cls) {
   state.combo = 0;
   if (atBoss()) state.bossMiss = true;
   if (q.mab) state.mabMiss = true;
-  state.lives -= 1; state.phase = 'next'; state.reveal = true;
+  state.lives -= 1; state.phase = 'next'; state.reveal = true; missed(true);
   draw(); renderControls(); renderStatus();
   monsterAnim('miss-dmg'); showDamage('MISS', '#ff4444');
   setMessage(['ざんねん！　' + C.describe(q, cls) + mineText(q), 'ただしい 答えは みどり', ...q.reason].join('\n'));
