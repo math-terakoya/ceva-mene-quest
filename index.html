@@ -1662,13 +1662,9 @@ function stepMid(ok, cls) {
     setTimeout(() => goStep(i + 1, MARK[i] + ' せいかい！　つぎは ' + MARK[i + 1]), 900);
     return;
   }
-  const first = !state.stepFail;
-  if (first) { state.stepFail = cls; state.combo = 0; if (atBoss()) state.bossMiss = true; if (q.mab) state.mabMiss = true; state.lives -= 1; }
-  state.phase = 'next'; missed(true);
-  draw(); renderControls(); renderStatus();
-  if (first) { monsterAnim('miss-dmg'); showDamage('MISS', '#ff4444'); }
-  setMessage(['ざんねん！　' + C.describe(q, cls) + mineText(q), 'ただしい 答えは みどり', ...q.reason].join('\n'));
-  state.onNext = state.lives <= 0 ? () => { state.phase = 'idle'; $('gameOverScreen').classList.remove('hidden'); } : () => goStep(i + 1, MARK[i + 1] + ' は ただしい ' + MARK[i] + ' で 考えよう');
+  // とちゅうを まちがえたら そこで 止める（つぎの 段へ 進まない）：ふつうの まちがいと 同じく 理由を 見せて、にた 問題へ（11-16 先生「間違えたら、止まって欲しい」）
+  C.record(state.ctx, q, false, cls, Math.round(performance.now() - state.shownAt), state.hintUsed);
+  onWrong(cls);
 }
 function afterStepFail(ok) {   // とちゅうを まちがえた 問題は さいごが できても たおせない（もう一度）
   const q = p(), cls = ok ? state.stepFail : C.classify(q, answer());
